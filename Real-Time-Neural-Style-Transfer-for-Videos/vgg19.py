@@ -2,23 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision.models import vgg19
 
-
-def vgg_norm(x: torch.Tensor):
-    # Min-Max Normalization
-    x = x.float()
-    min_v = x.min()
-    max_v = x.max()
-    if max_v - min_v > 0:
-        x = (x - min_v) / (max_v - min_v)
-    else:
-        x = torch.zeros_like(x)
-
-    # VGG Normalization
-    mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(x.device)
-    std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(x.device)
-    x = (x - mean) / std
-    return x
-
+from utilities import vgg_normalize
 
 class VGG19(nn.Module):
     def __init__(self):
@@ -51,7 +35,7 @@ class VGG19(nn.Module):
             param.requires_grad = False
 
     def forward(self, x):
-        x = vgg_norm(x)
+        x = vgg_normalize(x)
         x = self.slice1(x)
         relu1_2 = x
         x = self.slice2(x)
