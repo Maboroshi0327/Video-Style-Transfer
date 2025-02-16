@@ -31,8 +31,8 @@ def train():
         Videvo("./Videvo-jpg"),
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,
-        prefetch_factor=2,
+        # num_workers=4,
+        # prefetch_factor=2,
     )
     model = StylizingNetwork().to(device)
 
