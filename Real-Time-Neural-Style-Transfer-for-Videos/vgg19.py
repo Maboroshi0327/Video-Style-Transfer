@@ -56,7 +56,7 @@ class VGG19(nn.Module):
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    x = torch.randn(1, 3, 224, 224).to(device)
+    x = torch.randn(1, 3, 360, 640).to(device)
     model = VGG19().to(device)
     features = model(x)
     for key, value in features.items():

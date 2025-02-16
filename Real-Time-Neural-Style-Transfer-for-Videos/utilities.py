@@ -25,11 +25,19 @@ def list_files(directory):
     return sorted(files)
 
 
-def visualize_flow(flow):
+def list_folders(directory):
+    folders = [f.path for f in os.scandir(directory) if f.is_dir()]
+    return sorted(folders)
+
+
+def visualize_flow(flow: Union[torch.Tensor, np.ndarray]):
+    if isinstance(flow, torch.Tensor):
+        flow = flow.cpu().numpy()
+
     hsv = np.zeros((flow.shape[1], flow.shape[2], 3), dtype=np.uint8)
     hsv[..., 1] = 255
 
-    mag, ang = cv2.cartToPolar(flow[0].cpu().numpy(), flow[1].cpu().numpy())
+    mag, ang = cv2.cartToPolar(flow[0], flow[1])
     hsv[..., 0] = ang * 180 / np.pi / 2
     hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
@@ -57,7 +65,7 @@ def warp(x, flo, padding_mode="zeros"):
     return output
 
 
-def flow_warp_mask(flo01, flo10, padding_mode="zeros"):
+def flow_warp_mask(flo01, flo10, padding_mode="zeros", threshold=2):
     flo01 = flo01.unsqueeze(0)
     flo10 = flo10.unsqueeze(0)
     B, C, H, W = flo01.size()
@@ -84,7 +92,7 @@ def flow_warp_mask(flo01, flo10, padding_mode="zeros"):
     grid = grid.squeeze(0)
     warp_error = torch.abs(flow_warp - grid)
     warp_error = torch.sum(warp_error, dim=0)
-    mask = warp_error < 2
+    mask = warp_error < threshold
     mask = mask.float()
 
     return mask
