@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+import cv2
 from PIL import Image
 from tqdm import tqdm
 from collections import OrderedDict
@@ -10,13 +11,13 @@ from collections import OrderedDict
 from vgg19 import VGG19
 from network import StylizingNetwork
 from datasets import Videvo
-from utilities import gram_matrix, vgg_normalize, toTensor255, warp
+from utilities import gram_matrix, vgg_normalize, toTensor255, toPil, warp, visualize_flow
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
 epoch_end = 10
-batch_size = 2
+batch_size = 1
 LR = 1e-3
 ALPHA = 1
 BETA = 10
@@ -26,6 +27,7 @@ IMG_SIZE = (640, 360)
 
 
 def train():
+    torch.autograd.set_detect_anomaly(True)
     # Datasets and model
     dataloader = DataLoader(
         Videvo("./Videvo-jpg"),
@@ -62,62 +64,88 @@ def train():
             mask = mask.to(device)
             flow = flow.to(device)
 
-        # Zero gradients
-        adam.zero_grad()
+            # Zero gradients
+            adam.zero_grad()
 
-        # Forward pass
-        styled_img1 = model(img1)
-        styled_img2 = model(img2)
+            # Forward pass
+            styled_img1 = model(img1)
+            styled_img2 = model(img2)
 
-        # Normalize and use VGG19 to get features
-        styled_features = vgg19(styled_img2)
-        content_features = vgg19(img2)["relu4_2"]
+            # Normalize and use VGG19 to get features
+            styled_features = vgg19(styled_img2)
+            content_features = vgg19(img2)["relu4_2"]
 
-        # Content Loss
-        content_loss = L2distance(styled_features["relu4_2"], content_features)
-        content_loss *= ALPHA
+            # Content Loss
+            content_loss = L2distance(styled_features["relu4_2"], content_features)
+            content_loss *= ALPHA
 
-        # Style Loss
-        style_loss = 0
-        for gram_s, feature in zip(style_GM, styled_features.values()):
-            gram_f = gram_matrix(feature)
-            style_loss += L2distance(gram_f, gram_s.expand(gram_f.shape[0], -1, -1))
-        style_loss *= BETA
+            # Style Loss
+            style_loss = 0
+            for gram_s, feature in zip(style_GM, styled_features.values()):
+                gram_f = gram_matrix(feature)
+                style_loss += L2distance(gram_f, gram_s.expand(gram_f.shape[0], -1, -1))
+            style_loss *= BETA
 
-        # Regularization Loss
-        reg1 = torch.square(styled_img2[:, :, :-1, 1:] - styled_img2[:, :, :-1, :-1])
-        reg2 = torch.square(styled_img2[:, :, 1:, :-1] - styled_img2[:, :, :-1, :-1])
-        reg_loss = torch.sqrt(reg1 + reg2).sum()
-        reg_loss *= GAMMA
+            # Regularization Loss
+            reg1 = torch.square(styled_img2[:, :, :-1, 1:] - styled_img2[:, :, :-1, :-1])
+            reg2 = torch.square(styled_img2[:, :, 1:, :-1] - styled_img2[:, :, :-1, :-1])
+            # print("reg1: ", torch.min(reg1), torch.max(reg1))
+            # print("reg2: ", torch.min(reg2), torch.max(reg2))
+            reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).sum()
+            reg_loss *= GAMMA
 
-        # Temporal Loss
-        warped_style = warp(styled_img1, flow)
-        temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
-        temporal_loss = LAMBDA * temporal_loss.mean()
+            # Temporal Loss
+            mask = mask.unsqueeze(1)
+            mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
+            warped_style = warp(styled_img1, flow)
+            temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
+            temporal_loss = temporal_loss.mean()
+            temporal_loss *= LAMBDA
 
-        # Total Loss
-        loss = content_loss + style_loss + reg_loss + temporal_loss
+            # Total Loss
+            loss = content_loss + style_loss + temporal_loss + reg_loss
 
-        # Backward pass
-        loss.backward()
-        adam.step()
+            # print("img1: ", torch.min(img1), torch.max(img1))
+            # print("img2: ", torch.min(img2), torch.max(img2))
+            # print("mask: ", torch.min(mask), torch.max(mask))
+            # print("styled_img1: ", torch.min(styled_img1), torch.max(styled_img1))
+            # print("styled_img2: ", torch.min(styled_img2), torch.max(styled_img2))
+            # img1 = toPil(img1.squeeze(0).byte())
+            # img2 = toPil(img2.squeeze(0).byte())
+            # mask = toPil(mask.squeeze(0))
+            # styled_img1 = toPil(styled_img1.squeeze(0).byte())
+            # styled_img2 = toPil(styled_img2.squeeze(0).byte())
+            # rgb = visualize_flow(flow.squeeze(0))
+            # img1.save("img1.jpg")
+            # img2.save("img2.jpg")
+            # mask.save("mask.jpg")
+            # styled_img1.save("styled_img1.jpg")
+            # styled_img2.save("styled_img2.jpg")
+            # cv2.imwrite("flow.jpg", rgb)
+            if torch.isnan(loss):
+                print("Loss is NaN")
+                break
 
-        # Use OrderedDict to set suffix information
-        postfix = OrderedDict(
-            [
-                ("loss", loss.item()),
-                ("SL", style_loss.item()),
-                ("CL", content_loss.item()),
-                ("RL", reg_loss.item()),
-                ("TL", temporal_loss.item()),
-            ]
-        )
+            # Backward pass
+            loss.backward()
+            adam.step()
 
-        # Update progress bar
-        batch_iterator.set_postfix(postfix)
+            # Use OrderedDict to set suffix information
+            postfix = OrderedDict(
+                [
+                    ("loss", loss.item()),
+                    ("CL", content_loss.item()),
+                    ("SL", style_loss.item()),
+                    ("RL", reg_loss.item()),
+                    ("TL", temporal_loss.item()),
+                ]
+            )
 
-    # Save model
-    torch.save(model.state_dict(), f"./models/RTNSTV_epoch_{epoch}_batchSize_{batch_size}.pth")
+            # Update progress bar
+            batch_iterator.set_postfix(postfix)
+
+        # Save model
+        torch.save(model.state_dict(), f"./models/RTNSTV_epoch_{epoch}_batchSize_{batch_size}.pth")
 
 
 if __name__ == "__main__":

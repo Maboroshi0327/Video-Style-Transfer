@@ -87,13 +87,18 @@ class Videvo(Dataset):
 
 
 if __name__ == "__main__":
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     path = "./Videvo-jpg"
     dataset = Videvo(path)
-    img1, img2, flow_into_past, mask = dataset[726]
-    print(img1.shape, img2.shape, flow_into_past.shape, mask.shape)
+    img1, img2, flow, mask = dataset[726]
+    img1 = img1.to(device)
+    img2 = img2.to(device)
+    mask = mask.to(device)
+    flow = flow.to(device)
+    print(img1.shape, img2.shape, flow.shape, mask.shape)
 
     # warp image & visualize flow
-    next_img = warp(img1.unsqueeze(0), flow_into_past.unsqueeze(0)).squeeze(0)
+    next_img = warp(img1.unsqueeze(0), flow.unsqueeze(0)).squeeze(0)
     warp_mask = mask * next_img
 
     img1 = toPil(img1.byte())

@@ -86,7 +86,8 @@ class StylizingNetwork(nn.Module):
         x = self.deconv1(x)
         x = self.deconv2(x)
         x = self.conv4(x)
-        return x.clamp(0, 255)
+        x = (x + 1) / 2 * 255
+        return x
 
 
 if __name__ == "__main__":
