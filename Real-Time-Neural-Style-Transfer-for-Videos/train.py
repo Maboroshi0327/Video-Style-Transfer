@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-import cv2
 from PIL import Image
 from tqdm import tqdm
 from collections import OrderedDict

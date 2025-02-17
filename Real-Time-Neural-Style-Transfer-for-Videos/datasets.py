@@ -133,7 +133,6 @@ class Videvo(Dataset):
             for i in range(len(front_files)):
                 self.flow.append((front_files[i + frame_num - 1], back_files[i + frame_num - 1]))
 
-        self.deepflow = cv2.optflow.createOptFlow_DeepFlow()
         self.frame_num = frame_num
         self.length = len(self.frames)
         print(f"Videvo total data: {self.length}")
@@ -167,5 +166,6 @@ class Videvo(Dataset):
 
 if __name__ == "__main__":
     # get_frames(video_path="../datasets/Videvo")
-    calculate_optical_flow()
-    # dataset = Videvo(path="./Videvo", frame_num=1)
+    # calculate_optical_flow()
+    dataset = Videvo(path="./Videvo", frame_num=1)
+    img1, img2, flow, mask = dataset[0]
