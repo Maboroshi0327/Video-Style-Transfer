@@ -27,7 +27,6 @@ IMG_SIZE = (640, 360)
 
 
 def train():
-    torch.autograd.set_detect_anomaly(True)
     # Datasets and model
     dataloader = DataLoader(
         Videvo("./Videvo"),
