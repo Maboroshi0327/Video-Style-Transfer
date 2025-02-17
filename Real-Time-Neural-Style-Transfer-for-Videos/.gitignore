@@ -1,6 +1,7 @@
 __pycache__/
+.vscode/
 
-Videvo-jpg/
+Videvo/
 
 models/*
-!models/models_output_path
+!models/models_save_path

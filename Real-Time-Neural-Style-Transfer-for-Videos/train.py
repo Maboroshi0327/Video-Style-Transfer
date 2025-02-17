@@ -30,7 +30,7 @@ def train():
     torch.autograd.set_detect_anomaly(True)
     # Datasets and model
     dataloader = DataLoader(
-        Videvo("./Videvo-jpg"),
+        Videvo("./Videvo"),
         batch_size=batch_size,
         shuffle=True,
         # num_workers=4,
@@ -89,8 +89,6 @@ def train():
             # Regularization Loss
             reg1 = torch.square(styled_img2[:, :, :-1, 1:] - styled_img2[:, :, :-1, :-1])
             reg2 = torch.square(styled_img2[:, :, 1:, :-1] - styled_img2[:, :, :-1, :-1])
-            # print("reg1: ", torch.min(reg1), torch.max(reg1))
-            # print("reg2: ", torch.min(reg2), torch.max(reg2))
             reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).sum()
             reg_loss *= GAMMA
 
@@ -104,27 +102,6 @@ def train():
 
             # Total Loss
             loss = content_loss + style_loss + temporal_loss + reg_loss
-
-            # print("img1: ", torch.min(img1), torch.max(img1))
-            # print("img2: ", torch.min(img2), torch.max(img2))
-            # print("mask: ", torch.min(mask), torch.max(mask))
-            # print("styled_img1: ", torch.min(styled_img1), torch.max(styled_img1))
-            # print("styled_img2: ", torch.min(styled_img2), torch.max(styled_img2))
-            # img1 = toPil(img1.squeeze(0).byte())
-            # img2 = toPil(img2.squeeze(0).byte())
-            # mask = toPil(mask.squeeze(0))
-            # styled_img1 = toPil(styled_img1.squeeze(0).byte())
-            # styled_img2 = toPil(styled_img2.squeeze(0).byte())
-            # rgb = visualize_flow(flow.squeeze(0))
-            # img1.save("img1.jpg")
-            # img2.save("img2.jpg")
-            # mask.save("mask.jpg")
-            # styled_img1.save("styled_img1.jpg")
-            # styled_img2.save("styled_img2.jpg")
-            # cv2.imwrite("flow.jpg", rgb)
-            if torch.isnan(loss):
-                print("Loss is NaN")
-                break
 
             # Backward pass
             loss.backward()

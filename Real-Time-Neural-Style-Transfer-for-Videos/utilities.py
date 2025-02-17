@@ -30,6 +30,17 @@ def list_folders(directory):
     return sorted(folders)
 
 
+def mkdir(directory, delete_existing_files=False):
+    # create directory if it doesn't exist
+    os.makedirs(directory, exist_ok=True)
+
+    # delete old data
+    if delete_existing_files:
+        files = list_files(directory)
+        for f in files:
+            os.remove(f)
+
+
 def visualize_flow(flow: Union[torch.Tensor, np.ndarray]):
     if isinstance(flow, torch.Tensor):
         flow = flow.cpu().numpy()
