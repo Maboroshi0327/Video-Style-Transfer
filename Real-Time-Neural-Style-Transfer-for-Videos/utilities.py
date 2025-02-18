@@ -199,31 +199,16 @@ class Inference:
     def __init__(
         self,
         model_class,
-        input_frame_num: int,
         model_path: str,
         video_path: str,
         device: str = "cuda",
-        first_frame: Union[int, None] = None,
     ):
-        self.model = model_class(input_frame_num).to(device)
+        self.model = model_class().to(device)
         self.model.load_state_dict(torch.load(model_path, weights_only=True), strict=True)
         self.video_path = video_path
-        self.input_frame_num = input_frame_num
         self.device = device
 
         self.cap = cv2.VideoCapture(video_path)
-
-        # Skip the first few frames to match the first_frame
-        if first_frame is None or first_frame < input_frame_num:
-            first_frame = input_frame_num
-        for _ in range(first_frame - input_frame_num):
-            _, _ = self.cap.read()
-
-        # Read the few frames to match the input_frame_num
-        self.imgs = list()
-        for _ in range(input_frame_num):
-            _, frame = self.cap.read()
-            self.imgs.append(cvframe_to_tensor(frame))
 
     def __del__(self):
         self.cap.release()
@@ -231,11 +216,21 @@ class Inference:
     def __iter__(self):
         # Start the video style transfer
         while True:
+            # Read the next frame
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+
             # Pass the input tensor through the model
             with torch.no_grad():
-                input_tensor = torch.cat(self.imgs, dim=0).unsqueeze(0).to(self.device)
-                *_, output_tensor = self.model(input_tensor)
-                output_tensor = output_tensor.clamp(0, 255)
+                input_tensor = cvframe_to_tensor(frame).unsqueeze(0).to(self.device)
+                output_tensor = self.model(input_tensor)
+                # print()
+                # print(input_tensor.shape)
+                # print(torch.min(input_tensor), torch.max(input_tensor))
+                # print(output_tensor.shape)
+                # print(torch.min(output_tensor), torch.max(output_tensor))
+                # print()
 
             # Convert output tensor back to image format
             output_image = output_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy()
@@ -243,12 +238,3 @@ class Inference:
             output_image = output_image.astype("uint8")
 
             yield output_image
-
-            # Read the next frame
-            ret, frame = self.cap.read()
-            if not ret:
-                break
-
-            # Update the input tensor list
-            self.imgs.pop(0)
-            self.imgs.append(cvframe_to_tensor(frame))

@@ -10,13 +10,13 @@ from collections import OrderedDict
 from vgg19 import VGG19
 from network import StylizingNetwork
 from datasets import Videvo
-from utilities import gram_matrix, vgg_normalize, toTensor255, toPil, warp, visualize_flow
+from utilities import gram_matrix, vgg_normalize, toTensor255, warp
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
 epoch_end = 10
-batch_size = 1
+batch_size = 2
 LR = 1e-3
 ALPHA = 1
 BETA = 10
