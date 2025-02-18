@@ -12,8 +12,8 @@ class Conv(nn.Module):
         super().__init__()
         pad = int(np.floor(kernel_size / 2))
         self.pad = torch.nn.ReflectionPad2d(pad)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, bias=False)
-        self.norm = nn.InstanceNorm2d(out_channels, affine=True)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, bias=True)
+        self.norm = nn.InstanceNorm2d(out_channels, affine=False)
         self.activation = activation
 
     def forward(self, x):
@@ -22,6 +22,7 @@ class Conv(nn.Module):
         x = self.norm(x)
         if self.activation is not None:
             x = self.activation(x)
+
         return x
 
 
@@ -47,8 +48,8 @@ class Res(nn.Module):
 class Deconv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, activation: Union[nn.Module, None] = None):
         super().__init__()
-        self.deconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding=1, output_padding=1, bias=False)
-        self.norm = nn.InstanceNorm2d(out_channels, affine=True)
+        self.deconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding=1, output_padding=1, bias=True)
+        self.norm = nn.InstanceNorm2d(out_channels, affine=False)
         self.activation = activation
 
     def forward(self, x):
