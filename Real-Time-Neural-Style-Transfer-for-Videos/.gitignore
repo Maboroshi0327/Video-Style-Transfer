@@ -2,6 +2,7 @@ __pycache__/
 .vscode/
 
 Videvo/
+loss_plots/
 
 models/*
 !models/models_save_path

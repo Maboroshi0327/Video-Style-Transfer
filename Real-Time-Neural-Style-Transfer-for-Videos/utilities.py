@@ -225,12 +225,7 @@ class Inference:
             with torch.no_grad():
                 input_tensor = cvframe_to_tensor(frame).unsqueeze(0).to(self.device)
                 output_tensor = self.model(input_tensor)
-                # print()
-                # print(input_tensor.shape)
-                # print(torch.min(input_tensor), torch.max(input_tensor))
-                # print(output_tensor.shape)
-                # print(torch.min(output_tensor), torch.max(output_tensor))
-                # print()
+                output_tensor = output_tensor.clamp(0, 255)
 
             # Convert output tensor back to image format
             output_image = output_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy()

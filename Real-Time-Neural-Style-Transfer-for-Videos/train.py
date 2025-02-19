@@ -3,9 +3,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+import os
 from PIL import Image
 from tqdm import tqdm
 from collections import OrderedDict
+from matplotlib import pyplot as plt
 
 from vgg19 import VGG19
 from network import StylizingNetwork
@@ -15,12 +17,12 @@ from utilities import gram_matrix, vgg_normalize, toTensor255, warp
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
-epoch_end = 10
+epoch_end = 1
 batch_size = 2
 LR = 1e-3
-ALPHA = 1
-BETA = 10
-GAMMA = 1e-3
+ALPHA = 1e5
+BETA = 1e11
+GAMMA = 1e-5
 LAMBDA = 1e4
 IMG_SIZE = (640, 360)
 
@@ -55,6 +57,10 @@ def train():
     for epoch in range(epoch_start, epoch_end + 1):
         model.train()
 
+        loss_c = list()
+        loss_s = list()
+        loss_r = list()
+        loss_t = list()
         batch_iterator = tqdm(dataloader, desc=f"Epoch {epoch}/{epoch_end}", leave=True)
         for img1, img2, flow, mask in batch_iterator:
             img1 = img1.to(device)
@@ -99,6 +105,10 @@ def train():
             temporal_loss *= LAMBDA
 
             # Total Loss
+            loss_c.append(content_loss.item())
+            loss_s.append(style_loss.item())
+            loss_r.append(reg_loss.item())
+            loss_t.append(temporal_loss.item())
             loss = content_loss + style_loss + temporal_loss + reg_loss
 
             # Backward pass
@@ -121,6 +131,21 @@ def train():
 
         # Save model
         torch.save(model.state_dict(), f"./models/RTNSTV_epoch_{epoch}_batchSize_{batch_size}.pth")
+
+        # Save loss plots
+        os.makedirs("./loss_plots", exist_ok=True)
+        plt.figure()
+        iterations = range(1, len(loss_c) + 1)
+        plt.plot(iterations[1000:], loss_c[1000:], label="Content Loss")
+        plt.plot(iterations[1000:], loss_s[1000:], label="Style Loss")
+        plt.plot(iterations[1000:], loss_r[1000:], label="Regularization Loss")
+        plt.plot(iterations[1000:], loss_t[1000:], label="Temporal Loss")
+        plt.xlabel("Iteration")
+        plt.ylabel("Loss")
+        plt.title(f"Losses for Epoch {epoch}")
+        plt.legend()
+        plt.savefig(f"./loss_plots/epoch_{epoch}_loss.png")
+        plt.close()
 
 
 if __name__ == "__main__":
