@@ -4,6 +4,7 @@ from torchvision.models import vgg19
 
 from utilities import vgg_normalize
 
+
 class VGG19(nn.Module):
     def __init__(self):
         super().__init__()
