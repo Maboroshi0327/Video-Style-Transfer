@@ -20,11 +20,38 @@ epoch_start = 1
 epoch_end = 1
 batch_size = 2
 LR = 1e-3
-ALPHA = 1e5
-BETA = 1e11
-GAMMA = 1e-5
-LAMBDA = 1e4
+ALPHA = 1
+BETA = 10
+GAMMA = 0
+LAMBDA = 0
 IMG_SIZE = (640, 360)
+
+
+def spatial_loss(content, styled, style_GM, vgg19):
+    L2distance = nn.MSELoss(reduction="mean")
+
+    # Normalize and use VGG19 to get features
+    content_features = vgg19(content)["relu4_2"]
+    styled_features = vgg19(styled)
+
+    # Content Loss
+    content_loss = L2distance(content_features, styled_features["relu4_2"])
+    content_loss *= ALPHA
+
+    # Style Loss
+    style_loss = 0
+    for gram_s, feature in zip(style_GM, styled_features.values()):
+        gram_f = gram_matrix(feature)
+        style_loss += L2distance(gram_f, gram_s.expand(gram_f.shape[0], -1, -1))
+    style_loss *= BETA
+
+    # Regularization Loss
+    # reg1 = torch.square(styled[:, :, :-1, 1:] - styled[:, :, :-1, :-1])
+    # reg2 = torch.square(styled[:, :, 1:, :-1] - styled[:, :, :-1, :-1])
+    # reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).sum()
+    # reg_loss *= GAMMA
+
+    return content_loss, style_loss, 0
 
 
 def train():
@@ -40,7 +67,6 @@ def train():
 
     # Optimizer and loss
     adam = optim.Adam(model.parameters(), lr=LR)
-    L2distance = nn.MSELoss(reduction="mean")
     L2distanceMatrix = nn.MSELoss(reduction="none")
     vgg19 = VGG19().to(device)
 
@@ -50,7 +76,7 @@ def train():
     style = toTensor255(style).unsqueeze(0).to(device)
 
     # Style image Gram Matrix
-    style_features = vgg19(vgg_normalize(style))
+    style_features = vgg19(style)
     style_GM = [gram_matrix(f) for f in style_features.values()]
 
     # Training loop
@@ -59,8 +85,8 @@ def train():
 
         loss_c = list()
         loss_s = list()
-        loss_r = list()
-        loss_t = list()
+        # loss_r = list()
+        # loss_t = list()
         batch_iterator = tqdm(dataloader, desc=f"Epoch {epoch}/{epoch_end}", leave=True)
         for img1, img2, flow, mask in batch_iterator:
             img1 = img1.to(device)
@@ -75,41 +101,27 @@ def train():
             styled_img1 = model(img1)
             styled_img2 = model(img2)
 
-            # Normalize and use VGG19 to get features
-            styled_features = vgg19(styled_img2)
-            content_features = vgg19(img2)["relu4_2"]
-
-            # Content Loss
-            content_loss = L2distance(styled_features["relu4_2"], content_features)
-            content_loss *= ALPHA
-
-            # Style Loss
-            style_loss = 0
-            for gram_s, feature in zip(style_GM, styled_features.values()):
-                gram_f = gram_matrix(feature)
-                style_loss += L2distance(gram_f, gram_s.expand(gram_f.shape[0], -1, -1))
-            style_loss *= BETA
-
-            # Regularization Loss
-            reg1 = torch.square(styled_img2[:, :, :-1, 1:] - styled_img2[:, :, :-1, :-1])
-            reg2 = torch.square(styled_img2[:, :, 1:, :-1] - styled_img2[:, :, :-1, :-1])
-            reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).sum()
-            reg_loss *= GAMMA
+            # Spatial Loss
+            content_loss_1, style_loss_1, reg_loss_1 = spatial_loss(img1, styled_img1, style_GM, vgg19)
+            content_loss_2, style_loss_2, reg_loss_2 = spatial_loss(img2, styled_img2, style_GM, vgg19)
+            content_loss = content_loss_1 + content_loss_2
+            style_loss = style_loss_1 + style_loss_2
+            # reg_loss = reg_loss_1 + reg_loss_2
 
             # Temporal Loss
-            mask = mask.unsqueeze(1)
-            mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
-            warped_style = warp(styled_img1, flow)
-            temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
-            temporal_loss = temporal_loss.mean()
-            temporal_loss *= LAMBDA
+            # mask = mask.unsqueeze(1)
+            # mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
+            # warped_style = warp(styled_img1, flow)
+            # temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
+            # temporal_loss = temporal_loss.mean()
+            # temporal_loss *= LAMBDA
 
             # Total Loss
             loss_c.append(content_loss.item())
             loss_s.append(style_loss.item())
-            loss_r.append(reg_loss.item())
-            loss_t.append(temporal_loss.item())
-            loss = content_loss + style_loss + temporal_loss + reg_loss
+            # loss_r.append(reg_loss.item())
+            # loss_t.append(temporal_loss.item())
+            loss = content_loss + style_loss
 
             # Backward pass
             loss.backward()
@@ -121,8 +133,8 @@ def train():
                     ("loss", loss.item()),
                     ("CL", content_loss.item()),
                     ("SL", style_loss.item()),
-                    ("RL", reg_loss.item()),
-                    ("TL", temporal_loss.item()),
+                    # ("RL", reg_loss.item()),
+                    # ("TL", temporal_loss.item()),
                 ]
             )
 
@@ -138,8 +150,8 @@ def train():
         iterations = range(1, len(loss_c) + 1)
         plt.plot(iterations[1000:], loss_c[1000:], label="Content Loss")
         plt.plot(iterations[1000:], loss_s[1000:], label="Style Loss")
-        plt.plot(iterations[1000:], loss_r[1000:], label="Regularization Loss")
-        plt.plot(iterations[1000:], loss_t[1000:], label="Temporal Loss")
+        # plt.plot(iterations[1000:], loss_r[1000:], label="Regularization Loss")
+        # plt.plot(iterations[1000:], loss_t[1000:], label="Temporal Loss")
         plt.xlabel("Iteration")
         plt.ylabel("Loss")
         plt.title(f"Losses for Epoch {epoch}")
