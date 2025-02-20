@@ -12,18 +12,18 @@ from matplotlib import pyplot as plt
 from vgg19 import VGG19
 from network import StylizingNetwork
 from datasets import Videvo
-from utilities import gram_matrix, vgg_normalize, toTensor255, warp
+from utilities import gram_matrix, toTensor255, warp
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
-epoch_end = 1
+epoch_end = 2
 batch_size = 2
 LR = 1e-3
 ALPHA = 1
 BETA = 10
-GAMMA = 0
-LAMBDA = 0
+GAMMA = 1e-3
+LAMBDA = 1e4
 IMG_SIZE = (640, 360)
 
 
@@ -46,12 +46,12 @@ def spatial_loss(content, styled, style_GM, vgg19):
     style_loss *= BETA
 
     # Regularization Loss
-    # reg1 = torch.square(styled[:, :, :-1, 1:] - styled[:, :, :-1, :-1])
-    # reg2 = torch.square(styled[:, :, 1:, :-1] - styled[:, :, :-1, :-1])
-    # reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).sum()
-    # reg_loss *= GAMMA
+    reg1 = torch.square(styled[:, :, :-1, 1:] - styled[:, :, :-1, :-1])
+    reg2 = torch.square(styled[:, :, 1:, :-1] - styled[:, :, :-1, :-1])
+    reg_loss = torch.sqrt((reg1 + reg2).clamp(min=1e-8)).mean()
+    reg_loss *= GAMMA
 
-    return content_loss, style_loss, 0
+    return content_loss, style_loss, reg_loss
 
 
 def train():
@@ -85,8 +85,8 @@ def train():
 
         loss_c = list()
         loss_s = list()
-        # loss_r = list()
-        # loss_t = list()
+        loss_r = list()
+        loss_t = list()
         batch_iterator = tqdm(dataloader, desc=f"Epoch {epoch}/{epoch_end}", leave=True)
         for img1, img2, flow, mask in batch_iterator:
             img1 = img1.to(device)
@@ -106,22 +106,22 @@ def train():
             content_loss_2, style_loss_2, reg_loss_2 = spatial_loss(img2, styled_img2, style_GM, vgg19)
             content_loss = content_loss_1 + content_loss_2
             style_loss = style_loss_1 + style_loss_2
-            # reg_loss = reg_loss_1 + reg_loss_2
+            reg_loss = reg_loss_1 + reg_loss_2
 
             # Temporal Loss
-            # mask = mask.unsqueeze(1)
-            # mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
-            # warped_style = warp(styled_img1, flow)
-            # temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
-            # temporal_loss = temporal_loss.mean()
-            # temporal_loss *= LAMBDA
+            mask = mask.unsqueeze(1)
+            mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
+            warped_style = warp(styled_img1, flow)
+            temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
+            temporal_loss = temporal_loss.mean()
+            temporal_loss *= LAMBDA
 
             # Total Loss
             loss_c.append(content_loss.item())
             loss_s.append(style_loss.item())
-            # loss_r.append(reg_loss.item())
-            # loss_t.append(temporal_loss.item())
-            loss = content_loss + style_loss
+            loss_r.append(reg_loss.item())
+            loss_t.append(temporal_loss.item())
+            loss = content_loss + style_loss + reg_loss + temporal_loss
 
             # Backward pass
             loss.backward()
@@ -133,8 +133,8 @@ def train():
                     ("loss", loss.item()),
                     ("CL", content_loss.item()),
                     ("SL", style_loss.item()),
-                    # ("RL", reg_loss.item()),
-                    # ("TL", temporal_loss.item()),
+                    ("RL", reg_loss.item()),
+                    ("TL", temporal_loss.item()),
                 ]
             )
 
@@ -150,8 +150,8 @@ def train():
         iterations = range(1, len(loss_c) + 1)
         plt.plot(iterations[1000:], loss_c[1000:], label="Content Loss")
         plt.plot(iterations[1000:], loss_s[1000:], label="Style Loss")
-        # plt.plot(iterations[1000:], loss_r[1000:], label="Regularization Loss")
-        # plt.plot(iterations[1000:], loss_t[1000:], label="Temporal Loss")
+        plt.plot(iterations[1000:], loss_r[1000:], label="Regularization Loss")
+        plt.plot(iterations[1000:], loss_t[1000:], label="Temporal Loss")
         plt.xlabel("Iteration")
         plt.ylabel("Loss")
         plt.title(f"Losses for Epoch {epoch}")
