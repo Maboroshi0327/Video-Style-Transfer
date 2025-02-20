@@ -113,14 +113,15 @@ def gram_matrix(y: torch.Tensor):
     (b, ch, h, w) = y.size()
     features = y.view(b, ch, w * h)
     features_t = features.transpose(1, 2)
-    gram = features.bmm(features_t) / (ch * h * w)
+    gram = features.bmm(features_t) / (h * w)
     return gram
 
 
 def vgg_normalize(batch: torch.Tensor):
     # normalize using imagenet mean and std
-    mean = batch.new_tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
-    std = batch.new_tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+    batch = batch.float()
+    mean = batch.new_tensor([0.485, 0.456, 0.406]).view(-1, 1, 1).to(batch.device)
+    std = batch.new_tensor([0.229, 0.224, 0.225]).view(-1, 1, 1).to(batch.device)
     normalized_batch = (batch / 255.0 - mean) / std
     return normalized_batch
 
@@ -225,7 +226,7 @@ class Inference:
             with torch.no_grad():
                 input_tensor = cvframe_to_tensor(frame).unsqueeze(0).to(self.device)
                 output_tensor = self.model(input_tensor)
-                output_tensor = output_tensor.clamp(0, 255)
+                output_tensor = output_tensor
 
             # Convert output tensor back to image format
             output_image = output_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy()
