@@ -23,7 +23,7 @@ LR = 1e-3
 ALPHA = 1
 BETA = 10
 GAMMA = 1e-3
-LAMBDA = 1e4
+LAMBDA = 1e-1
 IMG_SIZE = (640, 360)
 
 

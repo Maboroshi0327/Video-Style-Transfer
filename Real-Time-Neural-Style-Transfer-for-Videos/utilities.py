@@ -226,7 +226,6 @@ class Inference:
             with torch.no_grad():
                 input_tensor = cvframe_to_tensor(frame).unsqueeze(0).to(self.device)
                 output_tensor = self.model(input_tensor)
-                output_tensor = output_tensor
 
             # Convert output tensor back to image format
             output_image = output_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy()
