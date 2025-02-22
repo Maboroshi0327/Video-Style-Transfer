@@ -1,4 +1,5 @@
 import os
+import struct
 from typing import Union
 
 import cv2
@@ -107,6 +108,48 @@ def flow_warp_mask(flo01, flo10, padding_mode="zeros", threshold=2):
     mask = mask.float()
 
     return mask
+
+
+def read_sintel_flow(filename):
+    TAG_FLOAT = 202021.25  # Check for this when reading the file
+
+    with open(filename, "rb") as stream:
+        # Read the tag
+        tag_data = stream.read(4)
+        tag = struct.unpack("<f", tag_data)[0]
+        if tag != TAG_FLOAT:
+            raise ValueError(f"ReadFlowFile({filename}): wrong tag (possibly due to big-endian machine?)")
+
+        # Read width and height
+        width_data = stream.read(4)
+        height_data = stream.read(4)
+        width = struct.unpack("<i", width_data)[0]
+        height = struct.unpack("<i", height_data)[0]
+
+        if width < 1 or width > 99999:
+            raise ValueError(f"ReadFlowFile({filename}): illegal width {width}")
+        if height < 1 or height > 99999:
+            raise ValueError(f"ReadFlowFile({filename}): illegal height {height}")
+
+        # Prepare to read flow data
+        n_bands = 2
+        flow_data = np.zeros((height, width, n_bands), dtype=np.float32)
+
+        # Read the flow data
+        for y in range(height):
+            row_data = stream.read(width * n_bands * 4)
+            if len(row_data) != width * n_bands * 4:
+                raise ValueError(f"ReadFlowFile({filename}): file is too short")
+
+            row_data = np.frombuffer(row_data, dtype=np.float32)
+            flow_data[y, :, 0] = row_data[::2]
+            flow_data[y, :, 1] = row_data[1::2]
+
+        # Check for extra data
+        if stream.read(1):
+            raise ValueError(f"ReadFlowFile({filename}): file is too long")
+
+    return flow_data
 
 
 def gram_matrix(y: torch.Tensor):
