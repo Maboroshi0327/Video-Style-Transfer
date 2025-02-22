@@ -8,6 +8,8 @@ from PIL import Image
 from tqdm import tqdm
 from collections import OrderedDict
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use("Agg")
 
 from vgg19 import VGG19
 from network import StylizingNetwork
@@ -23,7 +25,7 @@ LR = 1e-3
 ALPHA = 1
 BETA = 10
 GAMMA = 1e-3
-LAMBDA = 1e-1
+LAMBDA = 3e-2
 IMG_SIZE = (640, 360)
 
 
@@ -72,7 +74,7 @@ def train():
 
     # Style image
     style_img_path = "./styles/starry-night.jpg"
-    style = Image.open(style_img_path).convert("RGB").resize(IMG_SIZE, Image.BILINEAR)
+    style = Image.open(style_img_path).convert("RGB")
     style = toTensor255(style).unsqueeze(0).to(device)
 
     # Style image Gram Matrix
