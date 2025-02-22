@@ -179,11 +179,65 @@ def print_state_dict(state_dict):
         print(name)
 
 
-def cvframe_to_tensor(frame):
+def cvframe_to_tensor(frame, resize: Union[tuple, None] = None):
+    """
+    resize: (width, height)
+    """
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    if frame.shape != (360, 640, 3):
-        frame = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_LINEAR)
+
+    if resize is not None:
+        frame = cv2.resize(frame, resize, interpolation=cv2.INTER_LINEAR)
+
     return toTensor255(frame)
+
+
+def temporal_errors_sintel(model_class, model_path: str, scene: str, device: str = "cuda") -> Union[float, int]:
+    frames_folder = f"../datasets/MPI-Sintel-complete/training/final/{scene}"
+    mask_folder = f"../datasets/MPI-Sintel-complete/training/occlusions/{scene}"
+    flow_folder = f"../datasets/MPI-Sintel-complete/training/flow/{scene}"
+    frames_fies = list_files(frames_folder)
+    mask_files = list_files(mask_folder)
+    flow_files = list_files(flow_folder)
+
+    model = model_class().to(device)
+    model.load_state_dict(torch.load(model_path, weights_only=True), strict=True)
+    model.eval()
+
+    L2distanceMatrix = nn.MSELoss(reduction="none")
+
+    error = 0
+    for idx in range(len(flow_files)):
+        img0 = cv2.imread(frames_fies[idx])
+        img1 = cv2.imread(frames_fies[idx + 1])
+        img0 = cvframe_to_tensor(img0).to(device)
+        img1 = cvframe_to_tensor(img1).to(device)
+        img0 = img0.unsqueeze(0)
+        img1 = img1.unsqueeze(0)
+
+        # styled images
+        with torch.no_grad():
+            styled_img0 = model(img0)
+            styled_img1 = model(img1)
+
+        # flow
+        flow = read_sintel_flow(flow_files[idx])
+        flow = toTensor(flow).to(device)
+
+        # mask
+        mask = cv2.imread(mask_files[idx], cv2.IMREAD_GRAYSCALE)
+        mask = (mask == 0).astype(np.uint8)
+        mask = toTensor(mask).to(device)
+
+        # Temporal Loss
+        mask = mask.unsqueeze(1)
+        mask = mask.expand(-1, img0.shape[1], -1, -1)
+        warped_style = warp(styled_img1, flow)
+        temporal_loss = mask * L2distanceMatrix(styled_img0, warped_style)
+        error += temporal_loss.mean().item()
+
+    error /= len(flow_files)
+    error = np.sqrt(error)
+    return error
 
 
 def calculate_mse(model_class, input_frame_num: int, model_path: str, video_path: str, device: str = "cuda"):
@@ -199,7 +253,7 @@ def calculate_mse(model_class, input_frame_num: int, model_path: str, video_path
     imgs = list()
     for _ in range(input_frame_num):
         _, frame = cap.read()
-        imgs.append(cvframe_to_tensor(frame))
+        imgs.append(cvframe_to_tensor(frame, resize=(640, 360)))
 
     # Start calculating the MSE
     while True:
@@ -233,7 +287,7 @@ def calculate_mse(model_class, input_frame_num: int, model_path: str, video_path
 
         # Update the input tensor list
         imgs.pop(0)
-        imgs.append(cvframe_to_tensor(frame))
+        imgs.append(cvframe_to_tensor(frame, resize=(640, 360)))
 
     cap.release()
     return loss / count
@@ -267,7 +321,7 @@ class Inference:
 
             # Pass the input tensor through the model
             with torch.no_grad():
-                input_tensor = cvframe_to_tensor(frame).unsqueeze(0).to(self.device)
+                input_tensor = cvframe_to_tensor(frame, resize=(640, 360)).unsqueeze(0).to(self.device)
                 output_tensor = self.model(input_tensor)
 
             # Convert output tensor back to image format
