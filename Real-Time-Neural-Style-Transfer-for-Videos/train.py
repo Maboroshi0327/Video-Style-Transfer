@@ -19,13 +19,13 @@ from utilities import gram_matrix, toTensor255, warp
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
-epoch_end = 2
+epoch_end = 10
 batch_size = 2
 LR = 1e-3
 ALPHA = 1
 BETA = 10
 GAMMA = 1e-3
-LAMBDA = 3e-2
+LAMBDA = 5e-1
 IMG_SIZE = (640, 360)
 
 
@@ -73,7 +73,7 @@ def train():
     vgg19 = VGG19().to(device)
 
     # Style image
-    style_img_path = "./styles/starry-night.jpg"
+    style_img_path = "./styles/candy.jpg"
     style = Image.open(style_img_path).convert("RGB")
     style = toTensor255(style).unsqueeze(0).to(device)
 
@@ -144,7 +144,7 @@ def train():
             batch_iterator.set_postfix(postfix)
 
         # Save model
-        torch.save(model.state_dict(), f"./models/RTNSTV_epoch_{epoch}_batchSize_{batch_size}.pth")
+        torch.save(model.state_dict(), f"./models/Candy_epoch_{epoch}_batchSize_{batch_size}.pth")
 
         # Save loss plots
         os.makedirs("./loss_plots", exist_ok=True)
@@ -158,7 +158,7 @@ def train():
         plt.ylabel("Loss")
         plt.title(f"Losses for Epoch {epoch}")
         plt.legend()
-        plt.savefig(f"./loss_plots/epoch_{epoch}_loss.png")
+        plt.savefig(f"./loss_plots/Candy_epoch_{epoch}_loss.png")
         plt.close()
 
 

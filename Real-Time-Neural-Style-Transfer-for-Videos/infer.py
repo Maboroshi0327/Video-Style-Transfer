@@ -6,7 +6,7 @@ from network import StylizingNetwork
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    inference = Inference(StylizingNetwork, "./models/RTNSTV_epoch_2_batchSize_2.pth", "../datasets/video2.mp4", device)
+    inference = Inference(StylizingNetwork, "./models/Candy_epoch_2_batchSize_2.pth", "../datasets/video3.mp4", device)
     for output in inference:
         cv2.imshow("Frames", output)
         if cv2.waitKey(20) & 0xFF == ord("q"):
