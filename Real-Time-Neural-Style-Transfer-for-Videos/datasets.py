@@ -1,5 +1,4 @@
 import os
-from typing import Union
 
 import cv2
 from tqdm import tqdm
@@ -10,7 +9,7 @@ from torch.utils.data import Dataset
 from utilities import list_files, list_folders, mkdir, toTensor255, toTensor, toPil, warp, flow_warp_mask
 
 
-def get_frames(video_path, img_size=(640, 360)):
+def get_frames(video_path="../datasets/Videvo", img_size=(640, 360)):
     files = list_files(video_path)
 
     # progress bar
@@ -78,6 +77,54 @@ def calculate_optical_flow(frame_path="./Videvo/frames", flow_path="./Videvo/flo
             # save flow data
             torch.save(flow_into_future, os.path.join(front_dir, f"{i:05d}_01.pt"))
             torch.save(flow_into_past, os.path.join(back_dir, f"{i+1:05d}_10.pt"))
+
+            pbar.update(1)
+
+
+def test_warp(frame_path="./Videvo/frames", flow_path="./Videvo/flow/", warp_path="./Videvo/warp", device="cuda"):
+    frame_folders = list_folders(frame_path)
+    flow_folders = list_folders(flow_path)
+
+    data_num = 0
+    for folder in frame_folders:
+        data_num += len(list_files(folder)) - 1
+
+    # progress bar
+    pbar = tqdm(desc="Calculating optical flow", total=data_num)
+
+    for i in range(len(flow_folders)):
+        # read frames and flows for each video
+        frame_files = list_files(frame_folders[i])
+        flows_01 = list_files(os.path.join(flow_folders[i], "front"))
+        flows_10 = list_files(os.path.join(flow_folders[i], "back"))
+
+        # create directory for saving warped images
+        save_path = os.path.join(warp_path, f"{i:05d}")
+        mkdir(save_path, True)
+
+        for j in range(len(flows_10)):
+            # read image
+            img = cv2.imread(frame_files[j])
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = toTensor255(img).unsqueeze(0).to(device)
+
+            # read optical flow
+            flow_into_future = torch.load(flows_01[j], weights_only=True)
+            flow_into_past = torch.load(flows_10[j], weights_only=True)
+            flow_into_future = flow_into_future.to(device)
+            flow_into_past = flow_into_past.to(device)
+
+            # create mask
+            mask = flow_warp_mask(flow_into_future, flow_into_past)
+            mask = mask.expand(1, img.shape[1], -1, -1)
+            mask = mask.to(device)
+
+            # warp image
+            warped_img = mask * warp(img, flow_into_past)
+
+            # save image
+            warped_img = toPil(warped_img.squeeze(0).byte())
+            warped_img.save(os.path.join(save_path, f"{j:05d}.jpg"))
 
             pbar.update(1)
 
@@ -167,5 +214,7 @@ class Videvo(Dataset):
 if __name__ == "__main__":
     # get_frames(video_path="../datasets/Videvo")
     # calculate_optical_flow()
+    # test_warp()
     dataset = Videvo(path="./Videvo", frame_num=1)
     img1, img2, flow, mask = dataset[0]
+    print(img1.shape, img2.shape, flow.shape, mask.shape)
