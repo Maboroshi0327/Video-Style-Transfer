@@ -9,23 +9,28 @@ from tqdm import tqdm
 from collections import OrderedDict
 from matplotlib import pyplot as plt
 import matplotlib
+
 matplotlib.use("Agg")
 
 from vgg19 import VGG19
 from network import StylizingNetwork
-from datasets import Videvo
+from datasets import Videvo, FlyingThings3D_Monkaa
 from utilities import gram_matrix, toTensor255, warp
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
 epoch_end = 10
-batch_size = 2
+batch_size = 1
 LR = 1e-3
-ALPHA = 1
-BETA = 10
-GAMMA = 1e-3
-LAMBDA = 5e-1
+# ALPHA = 1
+# BETA = 10
+# GAMMA = 1e-1
+# LAMBDA = 1e-1
+ALPHA = 1e7
+BETA = 1e7
+GAMMA = 1e-1
+LAMBDA = 1e5
 IMG_SIZE = (640, 360)
 
 
@@ -58,10 +63,17 @@ def spatial_loss(content, styled, style_GM, vgg19):
 
 def train():
     # Datasets and model
+    # dataloader = DataLoader(
+    #     Videvo("./Videvo"),
+    #     batch_size=batch_size,
+    #     shuffle=True,
+    #     num_workers=4,
+    #     prefetch_factor=2,
+    # )
     dataloader = DataLoader(
-        Videvo("./Videvo"),
+        FlyingThings3D_Monkaa("../datasets/SceneFlowDatasets"),
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=4,
         prefetch_factor=2,
     )
@@ -111,11 +123,13 @@ def train():
             reg_loss = reg_loss_1 + reg_loss_2
 
             # Temporal Loss
+            aaa = mask.clone()
             mask = mask.unsqueeze(1)
             mask = mask.expand(-1, styled_img2.shape[1], -1, -1)
+            non_zero_count = mask.sum() + 1e-8
             warped_style = warp(styled_img1, flow)
             temporal_loss = mask * L2distanceMatrix(styled_img2, warped_style)
-            temporal_loss = temporal_loss.mean()
+            temporal_loss = temporal_loss.sum() / non_zero_count
             temporal_loss *= LAMBDA
 
             # Total Loss
@@ -124,6 +138,30 @@ def train():
             loss_r.append(reg_loss.item())
             loss_t.append(temporal_loss.item())
             loss = content_loss + style_loss + reg_loss + temporal_loss
+
+            # if torch.isnan(loss):
+            #     print("Loss is NaN")
+            #     print(f"Content Loss: {content_loss.item()}")
+            #     print(f"Style Loss: {style_loss.item()}")
+            #     print(f"Reg Loss: {reg_loss.item()}")
+            #     print(f"Temporal Loss: {temporal_loss.item()}")
+            #     print(non_zero_count)
+
+            #     print("Saving images")
+            #     os.makedirs("./nan_images", exist_ok=True)
+            #     img1 = toPil(img1[0].byte())
+            #     img1.save(f"./nan_images/img1_epoch_{epoch}_batchSize_{batch_size}.png")
+            #     styled_img1 = toPil(styled_img1[0].byte())
+            #     styled_img1.save(f"./nan_images/styled_img1_epoch_{epoch}_batchSize_{batch_size}.png")
+            #     img2 = toPil(img2[0].byte())
+            #     img2.save(f"./nan_images/img2_epoch_{epoch}_batchSize_{batch_size}.png")
+            #     styled_img2 = toPil(styled_img2[0].byte())
+            #     styled_img2.save(f"./nan_images/styled_img2_epoch_{epoch}_batchSize_{batch_size}.png")
+            #     mask = toPil(aaa)
+            #     mask.save(f"./nan_images/mask_epoch_{epoch}_batchSize_{batch_size}.png")
+            #     flow_rgb = visualize_flow(flow.squeeze(0))
+            #     cv2.imwrite(f"./nan_images/flow_epoch_{epoch}_batchSize_{batch_size}.png", flow_rgb)
+            #     exit()
 
             # Backward pass
             loss.backward()
