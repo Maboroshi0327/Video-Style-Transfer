@@ -154,19 +154,19 @@ class ReCoNet(torch.nn.Module):
     def __init__(self, input_frame_num=1):
         super(ReCoNet, self).__init__()
 
-        self.conv1 = ConvInstRelu(3 * input_frame_num, 32, kernel_size=9, stride=1)
-        self.conv2 = ConvInstRelu(32, 64, kernel_size=3, stride=2)
-        self.conv3 = ConvInstRelu(64, 128, kernel_size=3, stride=2)
+        self.conv1 = ConvInstRelu(3 * input_frame_num, 48, kernel_size=9, stride=1)
+        self.conv2 = ConvInstRelu(48, 96, kernel_size=3, stride=2)
+        self.conv3 = ConvInstRelu(96, 192, kernel_size=3, stride=2)
 
-        self.res1 = ResidualBlock(128, 128)
-        self.res2 = ResidualBlock(128, 128)
-        self.res3 = ResidualBlock(128, 128)
-        self.res4 = ResidualBlock(128, 128)
-        self.res5 = ResidualBlock(128, 128)
+        self.res1 = ResidualBlock(192, 192)
+        self.res2 = ResidualBlock(192, 192)
+        self.res3 = ResidualBlock(192, 192)
+        self.res4 = ResidualBlock(192, 192)
+        self.res5 = ResidualBlock(192, 192)
 
-        self.deconv1 = UpsampleConvInstRelu(128, 64, kernel_size=3, stride=1, upsample=2)
-        self.deconv2 = UpsampleConvInstRelu(64, 32, kernel_size=3, stride=1, upsample=2)
-        self.deconv3 = ConvTanh(32, 3, kernel_size=9, stride=1)
+        self.deconv1 = UpsampleConvInstRelu(192, 96, kernel_size=3, stride=1, upsample=2)
+        self.deconv2 = UpsampleConvInstRelu(96, 48, kernel_size=3, stride=1, upsample=2)
+        self.deconv3 = ConvTanh(48, 3, kernel_size=9, stride=1)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -277,3 +277,11 @@ class ReCoNetSD2(torch.nn.Module):
         x = self.deconv3_sd2(x)
 
         return (sd, features, x)
+
+
+if __name__ == "__main__":
+    # Test the network
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = ReCoNet().to(device)
+    x = torch.randn(2, 3, 360, 640).to(device)
+    print(model(x)[-1].shape)
