@@ -17,12 +17,12 @@ from utilities import gram_matrix, vgg_normalize, warp
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 epoch_start = 1
-epoch_end = 10
+epoch_end = 3
 batch_size = 2
 input_frame_num = 1
 LR = 1e-3
 ALPHA = 1e5
-BETA = 1e11
+BETA = 2e10
 GAMMA = 1e-2
 LAMBDA_F = 1e12
 LAMBDA_O = 1e7
@@ -47,7 +47,7 @@ def train():
     vgg16 = Vgg16().to(device)
 
     # Style image
-    style_img_path = "./styles/starry-night.jpg"
+    style_img_path = "./styles/candy.jpg"
     style = Image.open(style_img_path).convert("RGB").resize(IMG_SIZE, Image.BILINEAR)
     style = toTensor255(style).unsqueeze(0).to(device)
 
@@ -155,8 +155,8 @@ def train():
             postfix = OrderedDict(
                 [
                     ("loss", loss.item()),
-                    ("SL", style_loss.item()),
                     ("CL", content_loss.item()),
+                    ("SL", style_loss.item()),
                     ("FTL", f_temporal_loss.item()),
                     ("OTL", o_temporal_loss.item()),
                     ("RL", reg_loss.item()),
