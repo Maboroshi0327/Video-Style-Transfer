@@ -9,7 +9,7 @@ from utilities import Inference
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_infer = Inference(ReCoNet, 1, "./models/Flow_input_1_epoch_3_batchSize_2.pth", "../datasets/video3.mp4", device)
+    model_infer = Inference(ReCoNet, 1, "./models/Flow_input_1_epoch_4_batchSize_2.pth", "../datasets/video3.mp4", device)
     # model_infer = Inference(ReCoNetSD1, 1, "./models_old/SD1_epoch_4_batchSize_2.pth", "../datasets/video3.mp4", device)
     # model_infer = Inference(ReCoNetSD2, 1, "./models_old/SD2_epoch_4_batchSize_2.pth", "../datasets/video3.mp4", device)
     # model_infer = Inference(ReCoNet, 1, "./models/Coco2014_epoch_10_batchSize_4.pth", "../datasets/video3.mp4", device)
