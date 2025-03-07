@@ -30,19 +30,6 @@ class ConvReLU(nn.Module):
         return x
 
 
-class ConvTanh(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int):
-        super().__init__()
-        self.conv = Conv(in_channels, out_channels, kernel_size, stride)
-        self.tanh = nn.Tanh()
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.tanh(x)
-        x = (x + 1) / 2 * 255
-        return x
-
-
 class ConvReluInterpolate(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, scale_factor: float):
         super().__init__()
@@ -57,40 +44,43 @@ class ConvReluInterpolate(nn.Module):
         return x
 
 
-class Encoder(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = ConvReLU(3, 64, kernel_size=3, stride=1)
-        self.conv2 = ConvReLU(64, 128, kernel_size=3, stride=2)
-        self.conv3 = ConvReLU(128, 256, kernel_size=3, stride=2)
-        self.conv4 = ConvReLU(256, 512, kernel_size=3, stride=2)
-        self.conv5 = ConvReLU(512, 512, kernel_size=3, stride=2)
-
-    def forward(self, x):
-        x_1 = self.conv1(x)
-        x_2 = self.conv2(x_1)
-        x_3 = self.conv3(x_2)
-        x_4 = self.conv4(x_3)
-        x_5 = self.conv5(x_4)
-
-        return [x_1, x_2, x_3, x_4, x_5]
-
-
 class Decoder(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.deconv1 = ConvReluInterpolate(512, 512, kernel_size=3, stride=1, scale_factor=2)
-        self.deconv2 = ConvReluInterpolate(512, 256, kernel_size=3, stride=1, scale_factor=2)
-        self.deconv3 = ConvReluInterpolate(256, 128, kernel_size=3, stride=1, scale_factor=2)
-        self.deconv4 = ConvReluInterpolate(128, 64, kernel_size=3, stride=1, scale_factor=2)
-        self.conv = ConvTanh(64, 3, kernel_size=3, stride=1)
+
+        self.conv1 = ConvReLU(512, 512, kernel_size=3, stride=1)
+        self.conv2 = ConvReLU(512, 256, kernel_size=3, stride=1)
+        self.conv3 = nn.Sequential(
+            ConvReLU(512, 256, kernel_size=3, stride=1),
+            ConvReLU(256, 256, kernel_size=3, stride=1),
+            ConvReLU(256, 256, kernel_size=3, stride=1),
+        )
+        self.conv4 = ConvReLU(256, 128, kernel_size=3, stride=1)
+        self.conv5 = ConvReLU(128, 128, kernel_size=3, stride=1)
+        self.conv6 = ConvReLU(128, 64, kernel_size=3, stride=1)
+        self.conv7 = ConvReLU(64, 64, kernel_size=3, stride=1)
+        self.conv8 = Conv(64, 3, kernel_size=3, stride=1)
 
     def forward(self, x5, x4, x3):
-        x = self.deconv1(x5)
-        x = self.deconv2(x + x4)
-        x = self.deconv3(x + x3)
-        x = self.deconv4(x)
-        x = self.conv(x)
+        x = F.interpolate(x5, scale_factor=2, mode="bilinear", align_corners=False)
+        x = x + x4
+        x = self.conv1(x)
+
+        x = self.conv2(x)
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
+
+        x = torch.cat([x, x3], dim=1)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
+
+        x = self.conv5(x)
+        x = self.conv6(x)
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
+
+        x = self.conv7(x)
+        x = self.conv8(x)
+
         return x
 
 
@@ -140,7 +130,6 @@ class AdaAttN(nn.Module):
 class StylizingNetwork(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder = Encoder()
 
         self.adaattn = nn.ModuleList(
             [
@@ -166,11 +155,8 @@ class StylizingNetwork(torch.nn.Module):
         return torch.cat(result, dim=1)
 
     def forward(self, c, s):
-        # c_1~5
-        c = self.encoder(c)
-
-        # s_1~5
-        s = self.encoder(s)
+        c = list(c.values())
+        s = list(s.values())
 
         # cs_3~5
         adaattn = list()
@@ -186,10 +172,14 @@ class StylizingNetwork(torch.nn.Module):
 
 
 if __name__ == "__main__":
+    from vgg19 import VGG19
+
     # Test the network
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = StylizingNetwork().to(device)
+    vgg19 = VGG19().to(device)
     x = torch.randn(1, 3, 256, 256).to(device)
+    x = vgg19(x)
     adaattn, cs = model(x, x)
     print(cs.shape)
     for a in adaattn:

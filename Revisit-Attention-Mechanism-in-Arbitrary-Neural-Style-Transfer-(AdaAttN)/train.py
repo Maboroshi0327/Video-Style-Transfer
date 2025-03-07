@@ -14,21 +14,21 @@ EPOCH_START = 1
 EPOCH_END = 10
 BATCH_SIZE = 8
 IMG_SIZE = (256, 256)
-LR = 1e-3
-LAMBDA_G = 1
-LAMBDA_L = 1e3
+LR = 1e-4
+LAMBDA_G = 10
+LAMBDA_L = 3
 
 
 def global_stylized_loss(fcs, fs):
     # Mean distance
     mean_dist = fcs.mean(dim=(2, 3)) - fs.mean(dim=(2, 3))
     mean_dist_norm = torch.linalg.vector_norm(mean_dist, ord=2, dim=None, keepdim=False)
-    mean_dist_norm = mean_dist_norm / mean_dist.numel()
+    mean_dist_norm = mean_dist_norm #/ mean_dist.numel()
 
     # Standard deviation distance
     std_dist = fcs.std(dim=(2, 3)) - fs.std(dim=(2, 3))
     std_dist_norm = torch.linalg.vector_norm(std_dist, ord=2, dim=None, keepdim=False)
-    std_dist_norm = std_dist_norm / std_dist.numel()
+    std_dist_norm = std_dist_norm #/ std_dist.numel()
 
     # Loss for each ReLU_x_1 layer
     return mean_dist_norm + std_dist_norm
@@ -37,7 +37,7 @@ def global_stylized_loss(fcs, fs):
 def local_feature_loss(fcs, adaattn):
     dist = fcs - adaattn
     dist_norm = torch.linalg.vector_norm(dist, ord=2, dim=None, keepdim=False)
-    dist_norm = dist_norm / dist.numel()
+    dist_norm = dist_norm #/ dist.numel()
     return dist_norm
 
 
@@ -81,34 +81,37 @@ def train():
 
         # Training
         for (content, _), (style, _) in batch_iterator:
-            bc, *_ = content.size()
-            bs, *_ = style.size()
-            b_min = min(bc, bs)
-
-            content = content[:b_min,].to(device)
-            style = style[:b_min,].to(device)
-
             # Zero the gradients
             optimizer.zero_grad()
 
+            # Let batch size be the same
+            bc, *_ = content.size()
+            bs, *_ = style.size()
+            b_min = min(bc, bs)
+            content = content[:b_min,].to(device)
+            style = style[:b_min,].to(device)
+
+            # VGG19 encoder
+            fc = vgg19(content)
+            fs = vgg19(style)
+
             # Forward pass
-            adaattn, cs = model(content, style)
-            fs_dict = vgg19(style)
-            fcs_dict = vgg19(cs)
+            adaattn, cs = model(fc, fs)
+            fcs = vgg19(cs)
 
             # Global stylized loss
             loss_gs = 0
-            loss_gs += global_stylized_loss(fcs_dict["relu2_1"], fs_dict["relu2_1"])
-            loss_gs += global_stylized_loss(fcs_dict["relu3_1"], fs_dict["relu3_1"])
-            loss_gs += global_stylized_loss(fcs_dict["relu4_1"], fs_dict["relu4_1"])
-            loss_gs += global_stylized_loss(fcs_dict["relu5_1"], fs_dict["relu5_1"])
+            loss_gs += global_stylized_loss(fcs["relu2_1"], fs["relu2_1"])
+            loss_gs += global_stylized_loss(fcs["relu3_1"], fs["relu3_1"])
+            loss_gs += global_stylized_loss(fcs["relu4_1"], fs["relu4_1"])
+            loss_gs += global_stylized_loss(fcs["relu5_1"], fs["relu5_1"])
             loss_gs *= LAMBDA_G
 
             # Local feature loss
             loss_lf = 0
-            loss_lf += local_feature_loss(fcs_dict["relu3_1"], adaattn[0])
-            loss_lf += local_feature_loss(fcs_dict["relu4_1"], adaattn[1])
-            loss_lf += local_feature_loss(fcs_dict["relu5_1"], adaattn[2])
+            loss_lf += local_feature_loss(fcs["relu3_1"], adaattn[0])
+            loss_lf += local_feature_loss(fcs["relu4_1"], adaattn[1])
+            loss_lf += local_feature_loss(fcs["relu5_1"], adaattn[2])
             loss_lf *= LAMBDA_L
 
             # Loss

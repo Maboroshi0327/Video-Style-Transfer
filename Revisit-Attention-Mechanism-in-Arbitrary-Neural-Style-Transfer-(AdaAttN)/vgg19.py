@@ -14,22 +14,27 @@ class VGG19(nn.Module):
         self.slice2 = nn.Sequential()
         self.slice3 = nn.Sequential()
         self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
+
+        # Relu1_1
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg[x])
 
         # Relu2_1
-        for x in range(7):
-            self.slice1.add_module(str(x), vgg[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg[x])
 
         # Relu3_1
         for x in range(7, 12):
-            self.slice2.add_module(str(x), vgg[x])
+            self.slice3.add_module(str(x), vgg[x])
 
         # Relu4_1
         for x in range(12, 21):
-            self.slice3.add_module(str(x), vgg[x])
+            self.slice4.add_module(str(x), vgg[x])
 
         # Relu5_1
         for x in range(21, 30):
-            self.slice4.add_module(str(x), vgg[x])
+            self.slice5.add_module(str(x), vgg[x])
 
         # Freeze all VGG parameters by setting requires_grad to False
         for param in self.parameters():
@@ -38,15 +43,18 @@ class VGG19(nn.Module):
     def forward(self, x):
         x = vgg_normalize(x)
         x = self.slice1(x)
-        relu2_1 = x
+        relu1_1 = x
         x = self.slice2(x)
-        relu3_1 = x
+        relu2_1 = x
         x = self.slice3(x)
-        relu4_1 = x
+        relu3_1 = x
         x = self.slice4(x)
+        relu4_1 = x
+        x = self.slice5(x)
         relu5_1 = x
 
         features = {
+            "relu1_1": relu1_1,
             "relu2_1": relu2_1,
             "relu3_1": relu3_1,
             "relu4_1": relu4_1,
