@@ -22,10 +22,11 @@ toPil = transforms.ToPILImage()
 gaussianBlur = transforms.GaussianBlur(kernel_size=3, sigma=1.0)
 
 
-def toTensorCrop(size: tuple = (256, 256)):
+def toTensorCrop(size_resize: tuple = (512, 512), size_crop: tuple = (256, 256)):
     transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(size=size),
+            transforms.Resize(size_resize),
+            transforms.RandomCrop(size=size_crop),
             toTensor255,
         ]
     )
