@@ -13,32 +13,29 @@ from network import StylizingNetwork
 EPOCH_START = 1
 EPOCH_END = 10
 BATCH_SIZE = 8
-IMG_SIZE = (256, 256)
-LR = 1e-4
+LR = 1e-3
 LAMBDA_G = 10
 LAMBDA_L = 3
 
 
-def global_stylized_loss(fcs, fs):
+def global_stylized_loss(fcs, fs, loss_fn):
     # Mean distance
-    mean_dist = fcs.mean(dim=(2, 3)) - fs.mean(dim=(2, 3))
-    mean_dist_norm = torch.linalg.vector_norm(mean_dist, ord=2, dim=None, keepdim=False)
-    mean_dist_norm = mean_dist_norm #/ mean_dist.numel()
+    fcs_mean = fcs.mean(dim=(2, 3))
+    fs_mean = fs.mean(dim=(2, 3))
+    mean_dist = loss_fn(fcs_mean, fs_mean)
 
     # Standard deviation distance
-    std_dist = fcs.std(dim=(2, 3)) - fs.std(dim=(2, 3))
-    std_dist_norm = torch.linalg.vector_norm(std_dist, ord=2, dim=None, keepdim=False)
-    std_dist_norm = std_dist_norm #/ std_dist.numel()
+    fcs_std = fcs.std(dim=(2, 3))
+    fs_std = fs.std(dim=(2, 3))
+    std_dist = loss_fn(fcs_std, fs_std)
 
     # Loss for each ReLU_x_1 layer
-    return mean_dist_norm + std_dist_norm
+    return mean_dist + std_dist
 
 
-def local_feature_loss(fcs, adaattn):
-    dist = fcs - adaattn
-    dist_norm = torch.linalg.vector_norm(dist, ord=2, dim=None, keepdim=False)
-    dist_norm = dist_norm #/ dist.numel()
-    return dist_norm
+def local_feature_loss(fcs, adaattn, loss_fn):
+    dist = loss_fn(fcs, adaattn)
+    return dist
 
 
 def train():
@@ -46,14 +43,14 @@ def train():
 
     # Datasets
     dataloader_coco = DataLoader(
-        Coco("../datasets/coco", IMG_SIZE),
+        Coco("../datasets/coco"),
         batch_size=BATCH_SIZE,
         shuffle=True,
         num_workers=4,
         prefetch_factor=2,
     )
     dataloader_wikiart = DataLoader(
-        WikiArt("../datasets/WikiArt", IMG_SIZE),
+        WikiArt("../datasets/WikiArt"),
         batch_size=BATCH_SIZE,
         shuffle=True,
         num_workers=4,
@@ -68,6 +65,9 @@ def train():
     # VGG19 for perceptual loss
     vgg19 = VGG19().to(device)
     vgg19.eval()
+
+    # Loss function
+    mse = torch.nn.MSELoss(reduction="mean")
 
     # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=LR)
@@ -101,17 +101,17 @@ def train():
 
             # Global stylized loss
             loss_gs = 0
-            loss_gs += global_stylized_loss(fcs["relu2_1"], fs["relu2_1"])
-            loss_gs += global_stylized_loss(fcs["relu3_1"], fs["relu3_1"])
-            loss_gs += global_stylized_loss(fcs["relu4_1"], fs["relu4_1"])
-            loss_gs += global_stylized_loss(fcs["relu5_1"], fs["relu5_1"])
+            loss_gs += global_stylized_loss(fcs["relu2_1"], fs["relu2_1"], mse)
+            loss_gs += global_stylized_loss(fcs["relu3_1"], fs["relu3_1"], mse)
+            loss_gs += global_stylized_loss(fcs["relu4_1"], fs["relu4_1"], mse)
+            loss_gs += global_stylized_loss(fcs["relu5_1"], fs["relu5_1"], mse)
             loss_gs *= LAMBDA_G
 
             # Local feature loss
             loss_lf = 0
-            loss_lf += local_feature_loss(fcs["relu3_1"], adaattn[0])
-            loss_lf += local_feature_loss(fcs["relu4_1"], adaattn[1])
-            loss_lf += local_feature_loss(fcs["relu5_1"], adaattn[2])
+            loss_lf += local_feature_loss(fcs["relu3_1"], adaattn[0], mse)
+            loss_lf += local_feature_loss(fcs["relu4_1"], adaattn[1], mse)
+            loss_lf += local_feature_loss(fcs["relu5_1"], adaattn[2], mse)
             loss_lf *= LAMBDA_L
 
             # Loss
