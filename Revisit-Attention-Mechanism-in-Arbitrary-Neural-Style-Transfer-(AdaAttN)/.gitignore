@@ -1,4 +1,4 @@
 __pycache__/
 
-models/
+models/*
 !models/models_save_path
