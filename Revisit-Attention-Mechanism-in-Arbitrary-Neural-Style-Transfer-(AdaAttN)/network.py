@@ -4,6 +4,8 @@ from torch.nn import functional as F
 
 import numpy as np
 
+from utilities import feature_down_sample
+
 
 class Conv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int):
@@ -96,15 +98,55 @@ class Decoder(torch.nn.Module):
         return x
 
 
+class AdaAttnNoConv(nn.Module):
+    def __init__(self, v_dim, qk_dim):
+        super().__init__()
+        self.norm_q = nn.InstanceNorm2d(qk_dim, affine=False)
+        self.norm_k = nn.InstanceNorm2d(qk_dim, affine=False)
+        self.norm_v = nn.InstanceNorm2d(v_dim, affine=False)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, c_x, s_x, c_1x, s_1x):
+        # Q^T
+        Q = self.norm_q(c_1x)
+        b, _, h, w = Q.size()
+        Q = Q.view(b, -1, h * w).permute(0, 2, 1)
+
+        # K
+        K = self.norm_k(s_1x)
+        b, _, h, w = K.size()
+        K = K.view(b, -1, h * w)
+
+        # V^T
+        V = s_x
+        b, _, h, w = V.size()
+        V = V.view(b, -1, h * w).permute(0, 2, 1)
+
+        # A * V^T
+        A = self.softmax(torch.bmm(Q, K))
+        M = torch.bmm(A, V)
+
+        # S
+        Var = torch.bmm(A, V**2) - M**2
+        S = torch.sqrt(Var.clamp(min=1e-6))
+
+        # Reshape M and S
+        b, _, h, w = c_x.size()
+        M = M.view(b, h, w, -1).permute(0, 3, 1, 2)
+        S = S.view(b, h, w, -1).permute(0, 3, 1, 2)
+
+        return S * self.norm_v(c_x) + M
+
+
 class AdaAttN(nn.Module):
     def __init__(self, v_dim, qk_dim):
         super().__init__()
         self.f = nn.Conv2d(qk_dim, qk_dim, 1)
         self.g = nn.Conv2d(qk_dim, qk_dim, 1)
         self.h = nn.Conv2d(v_dim, v_dim, 1)
-        self.norm_q = nn.InstanceNorm2d(qk_dim, affine=True)
-        self.norm_k = nn.InstanceNorm2d(qk_dim, affine=True)
-        self.norm_v = nn.InstanceNorm2d(v_dim, affine=True)
+        self.norm_q = nn.InstanceNorm2d(qk_dim, affine=False)
+        self.norm_k = nn.InstanceNorm2d(qk_dim, affine=False)
+        self.norm_v = nn.InstanceNorm2d(v_dim, affine=False)
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, c_x, s_x, c_1x, s_1x):
@@ -153,34 +195,21 @@ class StylizingNetwork(torch.nn.Module):
 
         self.decoder = Decoder()
 
-    def feature_down_sample(self, feat, last_feat_idx):
-        size = feat[last_feat_idx].shape[-2:]
+    def forward(self, fc, fs):
+        fc = list(fc.values())
+        fs = list(fs.values())
 
-        # Downsample the features
-        result = list()
-        for i in range(last_feat_idx):
-            down = F.interpolate(feat[i], size=size, mode="bilinear", align_corners=False)
-            result.append(down)
-        result.append(feat[last_feat_idx])
-
-        # Concatenate the features
-        return torch.cat(result, dim=1)
-
-    def forward(self, c, s):
-        c = list(c.values())
-        s = list(s.values())
-
-        # cs_3~5
+        # fcs_3~5
         adaattn = list()
         for i in range(3):
             idx_feat = i + 2
-            c_1x = self.feature_down_sample(c, idx_feat)
-            s_1x = self.feature_down_sample(s, idx_feat)
-            adaattn.append(self.adaattn[i](c[idx_feat], s[idx_feat], c_1x, s_1x))
+            c_1x = feature_down_sample(fc, idx_feat)
+            s_1x = feature_down_sample(fs, idx_feat)
+            adaattn.append(self.adaattn[i](fc[idx_feat], fs[idx_feat], c_1x, s_1x))
 
         # decode
         cs = self.decoder(adaattn[2], adaattn[1], adaattn[0])
-        return adaattn, cs
+        return cs
 
 
 if __name__ == "__main__":
@@ -192,7 +221,5 @@ if __name__ == "__main__":
     vgg19 = VGG19().to(device)
     x = torch.randn(1, 3, 256, 256).to(device)
     x = vgg19(x)
-    adaattn, cs = model(x, x)
+    cs = model(x, x)
     print(cs.shape)
-    for a in adaattn:
-        print(a.shape)
