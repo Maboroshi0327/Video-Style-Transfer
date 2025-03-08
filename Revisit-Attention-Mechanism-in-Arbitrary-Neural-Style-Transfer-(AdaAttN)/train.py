@@ -64,7 +64,7 @@ def train():
     model = StylizingNetwork().to(device)
     model.train()
 
-    # Models for calculating loss
+    # AdaAttN for calculating local feature loss
     adaattn_no_conv = nn.ModuleList(
         [
             AdaAttnNoConv(256, 64 + 128 + 256),
@@ -72,6 +72,10 @@ def train():
             AdaAttnNoConv(512, 64 + 128 + 256 + 512 + 512),
         ]
     )
+    adaattn_no_conv = adaattn_no_conv.to(device)
+    adaattn_no_conv.eval()
+
+    # VGG19 as feature extractor (encoder)
     vgg19 = VGG19().to(device)
     vgg19.eval()
 
