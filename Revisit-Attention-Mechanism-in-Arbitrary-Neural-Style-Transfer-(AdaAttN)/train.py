@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
@@ -7,7 +8,8 @@ from collections import OrderedDict
 
 from vgg19 import VGG19
 from datasets import Coco, WikiArt
-from network import StylizingNetwork
+from utilities import feature_down_sample
+from network import StylizingNetwork, AdaAttnNoConv
 
 
 EPOCH_START = 1
@@ -62,7 +64,14 @@ def train():
     model = StylizingNetwork().to(device)
     model.train()
 
-    # VGG19 for perceptual loss
+    # Models for calculating loss
+    adaattn_no_conv = nn.ModuleList(
+        [
+            AdaAttnNoConv(256, 64 + 128 + 256),
+            AdaAttnNoConv(512, 64 + 128 + 256 + 512),
+            AdaAttnNoConv(512, 64 + 128 + 256 + 512 + 512),
+        ]
+    )
     vgg19 = VGG19().to(device)
     vgg19.eval()
 
@@ -96,7 +105,7 @@ def train():
             fs = vgg19(style)
 
             # Forward pass
-            adaattn, cs = model(fc, fs)
+            cs = model(fc, fs)
             fcs = vgg19(cs)
 
             # Global stylized loss
@@ -108,10 +117,16 @@ def train():
             loss_gs *= LAMBDA_G
 
             # Local feature loss
+            fc = list(fc.values())
+            fs = list(fs.values())
+
             loss_lf = 0
-            loss_lf += local_feature_loss(fcs["relu3_1"], adaattn[0], mse)
-            loss_lf += local_feature_loss(fcs["relu4_1"], adaattn[1], mse)
-            loss_lf += local_feature_loss(fcs["relu5_1"], adaattn[2], mse)
+            for i in range(3):
+                idx_feat = i + 2
+                c_1x = feature_down_sample(fc, idx_feat)
+                s_1x = feature_down_sample(fs, idx_feat)
+                adaattn = adaattn_no_conv[i](fc[idx_feat], fs[idx_feat], c_1x, s_1x)
+                loss_lf += local_feature_loss(fcs[f"relu{i + 3}_1"], adaattn, mse)
             loss_lf *= LAMBDA_L
 
             # Loss
