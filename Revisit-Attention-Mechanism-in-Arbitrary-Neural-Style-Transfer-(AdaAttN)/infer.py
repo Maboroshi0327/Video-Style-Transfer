@@ -20,14 +20,24 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("./models/AdaAttN-test_epoch_1_batchSize_8.pth", weights_only=True), strict=True)
     model.eval()
 
-    idx = 12345
+    idx = 0
     c, s = coco[idx], wikiart[idx]
-    c, s = c[0].unsqueeze(0).to(device), s[0].unsqueeze(0).to(device)
+    c, s = c[0], s[0]
+    toPil(c.byte()).save("./content.png")
+    toPil(s.byte()).save("./style.png")
+    c, s = c.unsqueeze(0).to(device), s.unsqueeze(0).to(device)
+
     fc = vgg19(c)
-    fs = vgg19(s)
+    fs = vgg19(c.clone())
 
     with torch.no_grad():
         _, cs = model(fc, fs)
+
+        # min_v = cs.min()
+        # max_v = cs.max()
+        # cs = (cs - min_v) / (max_v - min_v) * 255
+        # print(min_v, max_v)
+
         cs = cs.squeeze(0)
         cs = toPil(cs.byte())
-        cs.save(f"./{idx}.png")
+        cs.save("./stylized.png")

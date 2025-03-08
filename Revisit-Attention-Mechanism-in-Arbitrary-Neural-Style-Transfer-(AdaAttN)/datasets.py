@@ -3,13 +3,13 @@ from torchvision.datasets import ImageFolder
 from utilities import toTensorCrop
 
 
-def Coco(path="../datasets/coco", img_size=(256, 256)):
-    dataset = ImageFolder(root=path, transform=toTensorCrop(img_size))
+def Coco(path="../datasets/coco"):
+    dataset = ImageFolder(root=path, transform=toTensorCrop())
     return dataset
 
 
-def WikiArt(path="../datasets/WikiArt", img_size=(256, 256)):
-    dataset = ImageFolder(root=path, transform=toTensorCrop(img_size))
+def WikiArt(path="../datasets/WikiArt"):
+    dataset = ImageFolder(root=path, transform=toTensorCrop())
     return dataset
 
 
@@ -19,3 +19,8 @@ if __name__ == "__main__":
     print(len(dataset))
     print(img.shape)
     print(img.min(), img.max())
+
+    from utilities import toPil
+    img = toPil(img.byte())
+    img.save("test.png")
+

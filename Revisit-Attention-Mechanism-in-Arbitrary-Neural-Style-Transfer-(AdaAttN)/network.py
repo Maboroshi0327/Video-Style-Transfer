@@ -30,6 +30,19 @@ class ConvReLU(nn.Module):
         return x
 
 
+class ConvTanh(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int):
+        super().__init__()
+        self.conv = Conv(in_channels, out_channels, kernel_size, stride)
+        self.tanh = nn.Tanh()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.tanh(x)
+        x = (x + 1) / 2 * 255
+        return x
+
+
 class ConvReluInterpolate(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, scale_factor: float):
         super().__init__()
@@ -47,7 +60,6 @@ class ConvReluInterpolate(nn.Module):
 class Decoder(torch.nn.Module):
     def __init__(self):
         super().__init__()
-
         self.conv1 = ConvReLU(512, 512, kernel_size=3, stride=1)
         self.conv2 = ConvReLU(512, 256, kernel_size=3, stride=1)
         self.conv3 = nn.Sequential(
