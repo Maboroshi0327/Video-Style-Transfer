@@ -1,4 +1,7 @@
+from torch.utils.data import Dataset
 from torchvision.datasets import ImageFolder
+
+import random
 
 from utilities import toTensorCrop
 
@@ -13,14 +16,28 @@ def WikiArt(path="../datasets/WikiArt"):
     return dataset
 
 
+class CocoWikiArt(Dataset):
+    def __init__(self, coco_path="../datasets/coco", wikiart_path="../datasets/WikiArt"):
+        self.coco = Coco(coco_path)
+        self.wikiart = WikiArt(wikiart_path)
+        self.coco_len = len(self.coco)
+        self.wikiart_len = len(self.wikiart)
+
+    def __len__(self):
+        return self.coco_len
+
+    def __getitem__(self, idx):
+        wikiart_idx = random.randint(0, self.wikiart_len - 1)
+        return self.coco[idx][0], self.wikiart[wikiart_idx][0]
+
+
 if __name__ == "__main__":
-    dataset = Coco()
-    img = dataset[0][0]
-    print(len(dataset))
-    print(img.shape)
-    print(img.min(), img.max())
+    dataset = CocoWikiArt()
+    c, s = dataset[123]
+    print("CocoWikiArt dataset")
+    print("dataset length:", len(dataset))
 
     from utilities import toPil
-    img = toPil(img.byte())
-    img.save("test.png")
-
+    toPil(c.byte()).save("coco.png")
+    toPil(s.byte()).save("wikiart.png")
+    print("Saved coco.png and wikiart.png")

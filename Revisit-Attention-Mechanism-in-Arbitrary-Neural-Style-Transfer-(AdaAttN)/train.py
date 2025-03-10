@@ -7,7 +7,7 @@ from tqdm import tqdm
 from collections import OrderedDict
 
 from vgg19 import VGG19
-from datasets import Coco, WikiArt
+from datasets import CocoWikiArt
 from utilities import feature_down_sample
 from network import StylizingNetwork, AdaAttnNoConv
 
@@ -15,7 +15,7 @@ from network import StylizingNetwork, AdaAttnNoConv
 EPOCH_START = 1
 EPOCH_END = 10
 BATCH_SIZE = 8
-LR = 1e-3
+LR = 1e-4
 LAMBDA_G = 10
 LAMBDA_L = 3
 
@@ -44,21 +44,13 @@ def train():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Datasets
-    dataloader_coco = DataLoader(
-        Coco("../datasets/coco"),
+    dataloader = DataLoader(
+        CocoWikiArt(),
         batch_size=BATCH_SIZE,
         shuffle=True,
         num_workers=4,
         prefetch_factor=2,
     )
-    dataloader_wikiart = DataLoader(
-        WikiArt("../datasets/WikiArt"),
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        num_workers=4,
-        prefetch_factor=2,
-    )
-    data_length = min(len(dataloader_coco), len(dataloader_wikiart))
 
     # Model
     model = StylizingNetwork().to(device)
@@ -89,20 +81,15 @@ def train():
     for epoch in range(EPOCH_START, EPOCH_END + 1):
 
         # Batch iterator
-        dataloader_zip = zip(dataloader_coco, dataloader_wikiart)
-        batch_iterator = tqdm(dataloader_zip, desc=f"Epoch {epoch}/{EPOCH_END}", total=data_length, leave=True)
+        batch_iterator = tqdm(dataloader, desc=f"Epoch {epoch}/{EPOCH_END}", leave=True)
 
         # Training
-        for (content, _), (style, _) in batch_iterator:
+        for content, style in batch_iterator:
+            content = content.to(device)
+            style = style.to(device)
+
             # Zero the gradients
             optimizer.zero_grad()
-
-            # Let batch size be the same
-            bc, *_ = content.size()
-            bs, *_ = style.size()
-            b_min = min(bc, bs)
-            content = content[:b_min,].to(device)
-            style = style[:b_min,].to(device)
 
             # VGG19 encoder
             fc = vgg19(content)
