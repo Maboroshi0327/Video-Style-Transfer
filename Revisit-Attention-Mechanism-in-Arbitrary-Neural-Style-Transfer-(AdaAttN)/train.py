@@ -18,6 +18,7 @@ BATCH_SIZE = 8
 LR = 1e-4
 LAMBDA_G = 10
 LAMBDA_L = 3
+ACTIAVTION = "cosine"
 
 
 def global_stylized_loss(fcs, fs, loss_fn):
@@ -53,15 +54,15 @@ def train():
     )
 
     # Model
-    model = StylizingNetwork().to(device)
+    model = StylizingNetwork(activation=ACTIAVTION).to(device)
     model.train()
 
     # AdaAttN for calculating local feature loss
     adaattn_no_conv = nn.ModuleList(
         [
-            AdaAttnNoConv(256, 64 + 128 + 256),
-            AdaAttnNoConv(512, 64 + 128 + 256 + 512),
-            AdaAttnNoConv(512, 64 + 128 + 256 + 512 + 512),
+            AdaAttnNoConv(256, 64 + 128 + 256, ACTIAVTION),
+            AdaAttnNoConv(512, 64 + 128 + 256 + 512, ACTIAVTION),
+            AdaAttnNoConv(512, 64 + 128 + 256 + 512 + 512, ACTIAVTION),
         ]
     )
     adaattn_no_conv = adaattn_no_conv.to(device)

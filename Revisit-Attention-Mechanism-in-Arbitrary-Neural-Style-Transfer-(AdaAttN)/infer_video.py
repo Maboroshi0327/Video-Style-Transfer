@@ -11,6 +11,8 @@ from utilities import toTensor255, cvframe_to_tensor
 MODEL_PATH = "./models/AdaAttN-test_epoch_5_batchSize_8.pth"
 STYLE_PATH = "./styles/starry-night.jpg"
 VIDEO_PATH = "../datasets/Videvo/15.mp4"
+ACTIAVTION = "cosine"
+# ACTIAVTION = "softmax"
 
 
 if __name__ == "__main__":
@@ -19,7 +21,7 @@ if __name__ == "__main__":
     vgg19 = VGG19().to(device)
     vgg19.eval()
 
-    model = StylizingNetwork().to(device)
+    model = StylizingNetwork(activation=ACTIAVTION).to(device)
     model.load_state_dict(torch.load(MODEL_PATH, weights_only=True), strict=True)
     model.eval()
 

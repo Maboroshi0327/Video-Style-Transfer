@@ -99,27 +99,24 @@ class Decoder(torch.nn.Module):
         return x
 
 
+class Softmax(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, q, k):
+        return self.softmax(torch.bmm(q, k))
+
+
 class CosineSimilarity(nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, q, k):
         """
-        d = h x w
         q:   (b, d, c)
         k:   (b, c, d)
         out: (b, d, d)
-
-        Implementation of cosine similarity:
-        b, d, _ = q.size()
-        out = torch.zeros(b, d, d)
-        for b_idx in range(b):
-            for d_idx1 in range(d):
-                for d_idx2 in range(d):
-                    out[b_idx, d_idx1, d_idx2] = torch.dot(q[b_idx, d_idx1, :], k[b_idx, :, d_idx2])
-                    out[b_idx, d_idx1, d_idx2] /= LA.vector_norm(q[b_idx, d_idx1, :]) * LA.vector_norm(k[b_idx, :, d_idx2])
-                    out[b_idx, d_idx1, d_idx2] += 1
-                out[b_idx, d_idx1, :] /= torch.sum(out[b_idx, d_idx1, :])
         """
         q_norm = LA.vector_norm(q, dim=-1, keepdim=True)
         k_norm = LA.vector_norm(k, dim=1, keepdim=True)
@@ -129,12 +126,18 @@ class CosineSimilarity(nn.Module):
 
 
 class AdaAttnNoConv(nn.Module):
-    def __init__(self, v_dim, qk_dim):
+    def __init__(self, v_dim, qk_dim, activation="softmax"):
         super().__init__()
         self.norm_q = nn.InstanceNorm2d(qk_dim, affine=False)
         self.norm_k = nn.InstanceNorm2d(qk_dim, affine=False)
         self.norm_v = nn.InstanceNorm2d(v_dim, affine=False)
-        self.softmax = nn.Softmax(dim=-1)
+
+        if activation == "softmax":
+            self.activation = Softmax()
+        elif activation == "cosine":
+            self.activation = CosineSimilarity()
+        else:
+            raise ValueError(f"Unknown activation function: {activation}")
 
     def forward(self, c_x, s_x, c_1x, s_1x):
         # Q^T
@@ -153,7 +156,7 @@ class AdaAttnNoConv(nn.Module):
         V = V.view(b, -1, h * w).permute(0, 2, 1)
 
         # A * V^T
-        A = self.softmax(torch.bmm(Q, K))
+        A = self.activation(Q, K)
         M = torch.bmm(A, V)
 
         # S
@@ -179,7 +182,11 @@ class AdaAttN(nn.Module):
         self.norm_v = nn.InstanceNorm2d(v_dim, affine=False)
 
         if activation == "softmax":
-            self.activation = nn.Softmax(dim=-1)
+            self.activation = Softmax()
+        elif activation == "cosine":
+            self.activation = CosineSimilarity()
+        else:
+            raise ValueError(f"Unknown activation function: {activation}")
 
     def forward(self, c_x, s_x, c_1x, s_1x):
         # Q^T
@@ -198,7 +205,7 @@ class AdaAttN(nn.Module):
         V = V.view(b, -1, h * w).permute(0, 2, 1)
 
         # A * V^T
-        A = self.activation(torch.bmm(Q, K))
+        A = self.activation(Q, K)
         M = torch.bmm(A, V)
 
         # S
@@ -214,14 +221,14 @@ class AdaAttN(nn.Module):
 
 
 class StylizingNetwork(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, activation="softmax"):
         super().__init__()
 
         self.adaattn = nn.ModuleList(
             [
-                AdaAttN(256, 64 + 128 + 256),
-                AdaAttN(512, 64 + 128 + 256 + 512),
-                AdaAttN(512, 64 + 128 + 256 + 512 + 512),
+                AdaAttN(256, 64 + 128 + 256, activation=activation),
+                AdaAttN(512, 64 + 128 + 256 + 512, activation=activation),
+                AdaAttN(512, 64 + 128 + 256 + 512 + 512, activation=activation),
             ]
         )
 
@@ -249,7 +256,7 @@ if __name__ == "__main__":
 
     # Test the network
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = StylizingNetwork().to(device)
+    model = StylizingNetwork(activation="cosine").to(device)
     vgg19 = VGG19().to(device)
     x = torch.randn(1, 3, 256, 256).to(device)
     x = vgg19(x)
