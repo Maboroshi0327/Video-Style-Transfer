@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch import linalg as LA
 from torch.nn import functional as F
 
 import numpy as np
@@ -98,6 +99,35 @@ class Decoder(torch.nn.Module):
         return x
 
 
+class CosineSimilarity(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, q, k):
+        """
+        d = h x w
+        q:   (b, d, c)
+        k:   (b, c, d)
+        out: (b, d, d)
+
+        Implementation of cosine similarity:
+        b, d, _ = q.size()
+        out = torch.zeros(b, d, d)
+        for b_idx in range(b):
+            for d_idx1 in range(d):
+                for d_idx2 in range(d):
+                    out[b_idx, d_idx1, d_idx2] = torch.dot(q[b_idx, d_idx1, :], k[b_idx, :, d_idx2])
+                    out[b_idx, d_idx1, d_idx2] /= LA.vector_norm(q[b_idx, d_idx1, :]) * LA.vector_norm(k[b_idx, :, d_idx2])
+                    out[b_idx, d_idx1, d_idx2] += 1
+                out[b_idx, d_idx1, :] /= torch.sum(out[b_idx, d_idx1, :])
+        """
+        q_norm = LA.vector_norm(q, dim=-1, keepdim=True)
+        k_norm = LA.vector_norm(k, dim=1, keepdim=True)
+        s = torch.bmm(q, k) / (q_norm * k_norm) + 1
+        a = s / s.sum(dim=-1, keepdim=True)
+        return a
+
+
 class AdaAttnNoConv(nn.Module):
     def __init__(self, v_dim, qk_dim):
         super().__init__()
@@ -139,7 +169,7 @@ class AdaAttnNoConv(nn.Module):
 
 
 class AdaAttN(nn.Module):
-    def __init__(self, v_dim, qk_dim):
+    def __init__(self, v_dim, qk_dim, activation="softmax"):
         super().__init__()
         self.f = nn.Conv2d(qk_dim, qk_dim, 1)
         self.g = nn.Conv2d(qk_dim, qk_dim, 1)
@@ -147,7 +177,9 @@ class AdaAttN(nn.Module):
         self.norm_q = nn.InstanceNorm2d(qk_dim, affine=False)
         self.norm_k = nn.InstanceNorm2d(qk_dim, affine=False)
         self.norm_v = nn.InstanceNorm2d(v_dim, affine=False)
-        self.softmax = nn.Softmax(dim=-1)
+
+        if activation == "softmax":
+            self.activation = nn.Softmax(dim=-1)
 
     def forward(self, c_x, s_x, c_1x, s_1x):
         # Q^T
@@ -166,7 +198,7 @@ class AdaAttN(nn.Module):
         V = V.view(b, -1, h * w).permute(0, 2, 1)
 
         # A * V^T
-        A = self.softmax(torch.bmm(Q, K))
+        A = self.activation(torch.bmm(Q, K))
         M = torch.bmm(A, V)
 
         # S
