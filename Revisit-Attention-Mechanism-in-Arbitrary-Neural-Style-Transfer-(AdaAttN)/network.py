@@ -120,7 +120,7 @@ class CosineSimilarity(nn.Module):
         """
         q_norm = LA.vector_norm(q, dim=-1, keepdim=True)
         k_norm = LA.vector_norm(k, dim=1, keepdim=True)
-        s = torch.bmm(q, k) / (q_norm * k_norm) + 1
+        s = torch.bmm(q, k) / torch.bmm(q_norm, k_norm) + 1
         a = s / s.sum(dim=-1, keepdim=True)
         return a
 
