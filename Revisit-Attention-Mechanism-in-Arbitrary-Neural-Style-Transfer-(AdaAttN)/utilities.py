@@ -21,6 +21,10 @@ gaussianBlur = transforms.GaussianBlur(kernel_size=3, sigma=1.0)
 
 
 def toTensorCrop(size_resize: tuple = (512, 512), size_crop: tuple = (256, 256)):
+    """
+    size_resize: (height, width) \\
+    size_crop: (height, width)
+    """
     transform = transforms.Compose(
         [
             transforms.Resize(size_resize),

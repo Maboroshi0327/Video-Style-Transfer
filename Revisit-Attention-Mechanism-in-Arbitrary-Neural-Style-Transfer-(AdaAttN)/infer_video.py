@@ -8,9 +8,9 @@ from network import StylizingNetwork
 from utilities import toTensor255, cvframe_to_tensor
 
 
-MODEL_PATH = "./models/AdaAttN-test_epoch_5_batchSize_8.pth"
-STYLE_PATH = "./styles/starry-night.jpg"
-VIDEO_PATH = "../datasets/Videvo/15.mp4"
+MODEL_PATH = "./models/AdaAttN-video_epoch_1_batchSize_4.pth"
+STYLE_PATH = "./styles/candy.jpg"
+VIDEO_PATH = "../datasets/Videvo/20.mp4"
 ACTIAVTION = "cosine"
 # ACTIAVTION = "softmax"
 
