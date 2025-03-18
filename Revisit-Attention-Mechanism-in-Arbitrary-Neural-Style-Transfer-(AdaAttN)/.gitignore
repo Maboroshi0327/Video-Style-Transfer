@@ -1,4 +1,5 @@
 __pycache__/
+Videvo/
 
 models/*
 !models/models_save_path
