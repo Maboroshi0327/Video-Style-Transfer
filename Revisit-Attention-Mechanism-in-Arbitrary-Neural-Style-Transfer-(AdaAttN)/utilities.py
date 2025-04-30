@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 
 import os
+import numpy as np
 from typing import Union
 
 import cv2
@@ -35,16 +36,16 @@ def toTensorCrop(size_resize: tuple = (512, 512), size_crop: tuple = (256, 256))
     return transform
 
 
-def cvframe_to_tensor(frame, resize: Union[tuple, None] = None):
+def cv2_to_tensor(img: np.ndarray, resize: Union[tuple, None] = None) -> torch.Tensor:
     """
     resize: (width, height)
     """
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     if resize is not None:
-        frame = cv2.resize(frame, resize, interpolation=cv2.INTER_AREA)
+        img = cv2.resize(img, resize, interpolation=cv2.INTER_AREA)
 
-    return toTensor255(frame)
+    return toTensor255(img)
 
 
 def list_files(directory):

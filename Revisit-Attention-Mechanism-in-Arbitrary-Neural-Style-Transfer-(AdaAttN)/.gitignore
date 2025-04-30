@@ -1,9 +1,9 @@
-__pycache__/
+**/__pycache__/
 Videvo/
 
 models/*
 !models/models_save_path
 
-coco.png
+content.png
+style.png
 stylized.png
-wikiart.png
