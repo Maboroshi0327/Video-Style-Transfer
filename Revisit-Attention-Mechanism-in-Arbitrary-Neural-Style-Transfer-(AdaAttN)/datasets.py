@@ -1,14 +1,16 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision.datasets import ImageFolder
+from torchvision.models.optical_flow import raft_large
 
 import os
 import random
+from PIL import Image
 
 import cv2
 from tqdm import tqdm
 
-from utilities import toTensor255, toPil, toTensorCrop, list_files, list_folders, mkdir
+from utilities import toTensor255, toPil, toTensorCrop, raftTransforms, list_files, list_folders, mkdir, flow_warp_mask
 
 
 def Coco(path="../datasets/coco", size_crop: tuple = (256, 256)):
@@ -40,6 +42,55 @@ class CocoWikiArt(Dataset):
     def __getitem__(self, idx):
         wikiart_idx = random.randint(0, self.wikiart_len - 1)
         return self.coco[idx][0], self.wikiart[wikiart_idx][0]
+
+
+class Sintel(Dataset):
+    def __init__(self, image_size: tuple = (256, 512), path="../datasets/MPI-Sintel-complete", device: str = "cuda"):
+        path = os.path.join(path, "training/final")
+        assert os.path.exists(path), f"Path {path} does not exist."
+
+        self.path = path
+        self.device = device
+        self.image_size = image_size
+        self.resolution = (image_size[1], image_size[0])
+
+        self.frame = list()
+        for folder in list_folders(path):
+            files = list_files(folder)
+            for i in range(len(files) - 1):
+                self.frame.append(files[i : i + 2])
+
+        self.length = len(self.frame)
+
+        self.raft = raft_large(weights="Raft_Large_Weights.C_T_SKHT_V2").to(device)
+        self.raft = self.raft.eval()
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx: int):
+        """
+        idx -> Index of the image pair, optical flow and mask to be returned.
+        """
+        with torch.no_grad():
+            # read image
+            img1 = Image.open(self.frame[idx][0]).convert("RGB").resize(self.resolution, Image.BILINEAR)
+            img2 = Image.open(self.frame[idx][1]).convert("RGB").resize(self.resolution, Image.BILINEAR)
+            img1 = toTensor255(img1).to(self.device)
+            img2 = toTensor255(img2).to(self.device)
+
+            # Calculate optical flow
+            img1_batch = img1.unsqueeze(0)
+            img2_batch = img2.unsqueeze(0)
+            img1_batch = raftTransforms(img1_batch)
+            img2_batch = raftTransforms(img2_batch)
+            flow_into_future = self.raft(img1_batch, img2_batch)[-1].squeeze(0)
+            flow_into_past = self.raft(img2_batch, img1_batch)[-1].squeeze(0)
+
+            # create mask
+            mask = flow_warp_mask(flow_into_future, flow_into_past)
+
+        return img1, img2, flow_into_past, mask
 
 
 def get_frames(video_path="../datasets/Videvo", img_size=(512, 256)):
@@ -133,6 +184,7 @@ if __name__ == "__main__":
     print("dataset length:", len(dataset))
 
     from utilities import toPil
+
     toPil(c.byte()).save("coco.png")
     toPil(s.byte()).save("wikiart.png")
     print("Saved coco.png and wikiart.png")

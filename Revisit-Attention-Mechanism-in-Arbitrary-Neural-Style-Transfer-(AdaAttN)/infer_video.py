@@ -5,14 +5,13 @@ from PIL import Image
 
 from vgg19 import VGG19
 from network import StylizingNetwork
-from utilities import toTensor255, cvframe_to_tensor
+from utilities import toTensor255, cv2_to_tensor
 
 
-MODEL_PATH = "./models/AdaAttN-video_epoch_1_batchSize_4.pth"
-STYLE_PATH = "./styles/candy.jpg"
+MODEL_PATH = "./models/AdaAttN-video_epoch_5_batchSize_2.pth"
+STYLE_PATH = "./styles/Candy.png"
 VIDEO_PATH = "../datasets/Videvo/20.mp4"
 ACTIAVTION = "cosine"
-# ACTIAVTION = "softmax"
 
 
 if __name__ == "__main__":
@@ -36,7 +35,7 @@ if __name__ == "__main__":
             break
 
         # Convert frame to tensor
-        c = cvframe_to_tensor(frame, resize=(512, 256))
+        c = cv2_to_tensor(frame, resize=(512, 256))
         c = c.unsqueeze(0).to(device)
         fc = vgg19(c)
 

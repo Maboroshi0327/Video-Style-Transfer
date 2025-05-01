@@ -14,7 +14,7 @@ from lossfn import global_stylized_loss, local_feature_loss, image_similarity_lo
 
 
 EPOCH_START = 1
-EPOCH_END = 10
+EPOCH_END = 5
 BATCH_SIZE = 4
 LR = 1e-4
 LAMBDA_G = 10
