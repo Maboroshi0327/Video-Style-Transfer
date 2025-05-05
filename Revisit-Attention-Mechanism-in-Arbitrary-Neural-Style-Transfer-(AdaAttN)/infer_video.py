@@ -8,10 +8,14 @@ from network import StylizingNetwork
 from utilities import toTensor255, cv2_to_tensor
 
 
-MODEL_PATH = "./models/AdaAttN-video_epoch_5_batchSize_2.pth"
-STYLE_PATH = "./styles/Candy.png"
-VIDEO_PATH = "../datasets/Videvo/20.mp4"
+# MODEL_PATH = "./models/AdaAttN-image_epoch_5_batchSize_8.pth"
+# ACTIAVTION = "softmax"
+
+MODEL_PATH = "./models/AdaAttN-video_epoch_5_batchSize_4.pth"
 ACTIAVTION = "cosine"
+
+VIDEO_PATH = "../datasets/Videvo/67.mp4"
+STYLE_PATH = "./styles/Composition.png"
 
 
 if __name__ == "__main__":
@@ -34,13 +38,13 @@ if __name__ == "__main__":
         if not ret:
             break
 
-        # Convert frame to tensor
-        c = cv2_to_tensor(frame, resize=(512, 256))
-        c = c.unsqueeze(0).to(device)
-        fc = vgg19(c)
-
-        # Forward pass
         with torch.no_grad():
+            # Convert frame to tensor
+            c = cv2_to_tensor(frame, resize=(512, 256))
+            c = c.unsqueeze(0).to(device)
+            fc = vgg19(c)
+
+            # Forward pass
             cs = model(fc, fs)
             cs = cs.clamp(0, 255)
 
@@ -51,6 +55,6 @@ if __name__ == "__main__":
 
         # Display the frame
         cv2.imshow("Frames", cs)
-        if cv2.waitKey(15) & 0xFF == ord("q"):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             cv2.destroyAllWindows()
             break
