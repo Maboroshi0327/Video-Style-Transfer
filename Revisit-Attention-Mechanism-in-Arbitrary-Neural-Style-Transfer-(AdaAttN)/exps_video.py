@@ -18,7 +18,7 @@ MODEL_PATH = "./models/AdaAttN-video_epoch_5_batchSize_4.pth"
 ACTIAVTION = "cosine"
 
 VIDEO_PATH = "../datasets/Videvo/67.mp4"
-STYLE_PATH = "./styles/Udnie.png"
+STYLE_PATH = "./styles/Udnie.jpg"
 
 IMAGE_SIZE1 = (256, 256)
 IMAGE_SIZE2 = (256, 512)
@@ -50,7 +50,9 @@ if __name__ == "__main__":
 
     # Count for optical flow loss
     count = 0
-    optical_loss = 0
+    warping_error = 0
+    flow_mse = 0
+    mse = nn.MSELoss(reduction="mean")
     mseMatrix = nn.MSELoss(reduction="none")
 
     # Load video
@@ -90,29 +92,42 @@ if __name__ == "__main__":
             # Calculate optical flow
             c1 = raftTransforms(c1)
             c2 = raftTransforms(c2)
-            flow_into_future = raft(c1, c2)[-1].squeeze(0)
-            flow_into_past = raft(c2, c1)[-1].squeeze(0)
+            c_flow_01 = raft(c1, c2)[-1].squeeze(0)
+            c_flow_10 = raft(c2, c1)[-1].squeeze(0)
+            cs1_raft = raftTransforms(cs1)
+            cs2_raft = raftTransforms(cs2)
+            # cs1_flow_01 = raft(cs1_raft, cs2_raft)[-1].squeeze(0)
+            cs1_flow_10 = raft(cs2_raft, cs1_raft)[-1].squeeze(0)
 
             # create mask
-            mask = flow_warp_mask(flow_into_future, flow_into_past).unsqueeze(0)
+            mask = flow_warp_mask(c_flow_01, c_flow_10).unsqueeze(0)
 
-            # Optical Flow Loss
-            warped_cs1 = warp(cs1, flow_into_past)
+            # Warping Error
+            warped_cs1 = warp(cs1, c_flow_10)
             mask = mask.unsqueeze(1)
             mask = mask.expand(-1, cs1.shape[1], -1, -1)
             loss = torch.sum(mask * mseMatrix(cs2, warped_cs1)) / (cs1.shape[1] * cs1.shape[2] * cs1.shape[3])
-            optical_loss += loss
+            warping_error += loss
             count += 1
+
+            # Flow MSE
+            flow_mse += mse(c_flow_10, cs1_flow_10)
 
             # Pop the frame 1
             frames.pop(0)
 
             # Print loss
-            loss_temp = torch.sqrt(optical_loss).item() / count
-            bar.set_postfix(optical_loss=loss_temp)
+            warping_error_temp = torch.sqrt(warping_error / count).item()
+            flow_mse_temp = (flow_mse / count).item()
+            bar.set_postfix(
+                warping_error=warping_error_temp,
+                flow_mse=flow_mse_temp,
+            )
             bar.update(1)
 
     bar.close()
     cap.release()
-    optical_loss = torch.sqrt(optical_loss).item() / count
-    print(f"Optical Flow Loss: {optical_loss}")
+    warping_error = torch.sqrt(warping_error / count).item()
+    print(f"Warping Error: {warping_error}")
+    flow_mse = (flow_mse / count).item()
+    print(f"Flow MSE: {flow_mse}")
