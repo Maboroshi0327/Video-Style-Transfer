@@ -16,8 +16,8 @@ CONTENT_IDX = 66666
 CONTENT_PATH = None
 STYLE_PATH = None
 
-CONTENT_PATH = "./contents/Chair.png"
-STYLE_PATH = "./styles/Candy.png"
+CONTENT_PATH = "./contents/Chair.jpg"
+STYLE_PATH = "./styles/Candy.jpg"
 
 IMAGE_SIZE = (256, 256)
 ACTIAVTION = "softmax"
