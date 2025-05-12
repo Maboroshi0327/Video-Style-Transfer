@@ -4,6 +4,5 @@ Videvo/
 models/*
 !models/models_save_path
 
-content.png
-style.png
-stylized.png
+results/*
+!results/inference_output_path
