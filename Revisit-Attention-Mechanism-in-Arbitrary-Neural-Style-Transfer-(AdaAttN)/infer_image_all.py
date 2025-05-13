@@ -7,7 +7,7 @@ from network import StylizingNetwork
 from utilities import toTensor255, toPil, list_files
 
 
-MODEL_EPOCH = 5
+MODEL_EPOCH = 10
 BATCH_SIZE = 8
 MODEL_PATH = f"./models/AdaAttN-image_epoch_{MODEL_EPOCH}_batchSize_{BATCH_SIZE}.pth"
 
