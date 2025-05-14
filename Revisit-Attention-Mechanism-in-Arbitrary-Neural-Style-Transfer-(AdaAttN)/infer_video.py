@@ -11,11 +11,11 @@ from utilities import toTensor255, cv2_to_tensor
 # MODEL_PATH = "./models/AdaAttN-image_epoch_5_batchSize_8.pth"
 # ACTIAVTION = "softmax"
 
-MODEL_PATH = "./models/AdaAttN-video_epoch_5_batchSize_4.pth"
+MODEL_PATH = "./models/AdaAttN-video_epoch_10_batchSize_4.pth"
 ACTIAVTION = "cosine"
 
 VIDEO_PATH = "../datasets/Videvo/67.mp4"
-STYLE_PATH = "./styles/Composition.png"
+STYLE_PATH = "./styles/Composition.jpg"
 
 
 if __name__ == "__main__":
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     vgg19.eval()
 
     model = StylizingNetwork(activation=ACTIAVTION).to(device)
-    model.load_state_dict(torch.load(MODEL_PATH, weights_only=True), strict=True)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device, weights_only=True), strict=True)
     model.eval()
 
     s = Image.open(STYLE_PATH).convert("RGB").resize((512, 256), Image.BILINEAR)
