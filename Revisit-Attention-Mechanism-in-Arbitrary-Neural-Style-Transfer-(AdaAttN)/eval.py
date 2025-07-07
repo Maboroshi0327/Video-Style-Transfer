@@ -1,15 +1,19 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torchvision import transforms, models
 
 import cv2
+import argparse
 import numpy as np
 import scipy.stats
-import argparse
+from PIL import Image
+from scipy import linalg
 
 import lpips
 from vgg19 import VGG19
 from utilities import cv2_to_tensor
+from SIFID import InceptionV3, calculate_activation_statistics, calculate_frechet_distance
 
 
 def lpips_loss(opt, no_print=False):
@@ -236,6 +240,71 @@ def ssim_loss(opt, no_print=False):
         return ssim.item()
 
 
+def calculate_sifid_given_paths(path0, path1, batch_size=1, cuda=True, dims=2048):
+    """
+    Calculates the SIFID of two paths
+    dims: 64, 192, 768, or 2048
+    """
+
+    block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+
+    model = InceptionV3([block_idx])
+    if cuda:
+        model.cuda()
+
+    m1, s1 = calculate_activation_statistics([path0], model, batch_size, dims, cuda)
+    m2, s2 = calculate_activation_statistics([path1], model, batch_size, dims, cuda)
+    fid_values = calculate_frechet_distance(m1, s1, m2, s2)
+    return fid_values
+
+
+def sifid(opt, no_print=False):
+    """
+    Calculate Single Image Fréchet Inception Distance (SIFID)
+    Compare SIFID distance between two images
+    Based on: https://github.com/tamarott/SinGAN/tree/master/SIFID
+    """
+
+    sifid_value = calculate_sifid_given_paths(opt.path0, opt.path1)
+
+    if not no_print:
+        print("SIFID: %f" % sifid_value)
+    else:
+        return sifid_value
+
+
+def debug_sifid(opt, no_print=False):
+    """
+    Debug version testing different feature dimensions
+    """
+    print(f"Comparing: {opt.path0} vs {opt.path1}")
+
+    # 測試不同維度的特徵
+    for dims in [64, 192, 768, 2048]:
+        print(f"\n=== Testing with {dims} dimensions ===")
+
+        block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+        model = InceptionV3([block_idx])
+        if opt.device == "cuda":
+            model.cuda()
+
+        # 計算統計
+        m1, s1 = calculate_activation_statistics([opt.path0], model, 1, dims, opt.device == "cuda")
+        m2, s2 = calculate_activation_statistics([opt.path1], model, 1, dims, opt.device == "cuda")
+
+        # 計算差異
+        diff = m1 - m2
+        print(f"Mean difference norm: {np.linalg.norm(diff):.6f}")
+        print(f"Covariance trace 1: {np.trace(s1):.6f}")
+        print(f"Covariance trace 2: {np.trace(s2):.6f}")
+
+        # 計算 SIFID
+        sifid_value = calculate_frechet_distance(m1, s1, m2, s2)
+        print(f"SIFID with {dims}D: {sifid_value:.6f}")
+
+    return sifid_value
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         usage="eval.py [-h] [-m MODE] [-p0 PATH0] [-p1 PATH1] [-d DEVICE]",
@@ -261,3 +330,7 @@ if __name__ == "__main__":
         uniformity(opt)
     elif opt.mode == "entropy":
         average_entropy(opt)
+    elif opt.mode == "sifid":
+        sifid(opt)
+    elif opt.mode == "debug_sifid":
+        debug_sifid(opt)

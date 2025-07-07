@@ -9,7 +9,7 @@ from PIL import Image
 from vgg19 import VGG19
 from network import StylizingNetwork
 from utilities import toTensor255, toPil, mkdir
-from eval import lpips_loss, ssim_loss, kl_loss, gram_loss, nth_order_moment, uniformity, average_entropy
+from eval import lpips_loss, ssim_loss, sifid, kl_loss, gram_loss, nth_order_moment, uniformity, average_entropy
 
 
 MODEL_EPOCH = 10
@@ -20,9 +20,12 @@ IMAGE_SIZE = (512, 512)
 ACTIAVTION = "softmax"
 
 CONTENT_STYLE_PAIR = [
-    ("./contents/Chair.jpg", "./styles/Brushstrokes.jpg"),
-    ("./contents/Brad-Pitt.jpg", "./styles/Sketch.jpg"),
-    ("./contents/Bird.jpg", "./styles/Tableau.jpg"),
+    ("./contents/Cornell.jpg", "./styles/Untitled-1964.jpg"),
+    ("./contents/Bird.jpg", "./styles/Sketch.jpg"),
+    ("./contents/RiverBoat.jpg", "./styles/Blue-3.jpg"),
+    ("./contents/Sailboat.jpg", "./styles/Another-colorful-world.jpg"),
+    ("./contents/Streets.jpg", "./styles/Composition.jpg"),
+    ("./contents/Tubingen.jpg", "./styles/Volga-Landscape.jpg"),
 ]
 
 opt = argparse.Namespace(
@@ -80,10 +83,12 @@ if __name__ == "__main__":
         opt.path1 = content_save_path
         lpips_content = lpips_loss(opt, no_print=True)
         ssim_content = ssim_loss(opt, no_print=True)
+        sifid_content = sifid(opt, no_print=True)
 
         opt.path1 = style_save_path
         lpips_style = lpips_loss(opt, no_print=True)
         ssim_style = ssim_loss(opt, no_print=True)
+        sifid_style = sifid(opt, no_print=True)
         kl = kl_loss(opt, no_print=True)
         gram = gram_loss(opt, no_print=True)
         moment = nth_order_moment(opt, no_print=True)
@@ -97,8 +102,10 @@ if __name__ == "__main__":
                 "style": style_path,
                 "lpips_content": lpips_content,
                 "ssim_content": ssim_content,
+                "sifid_content": sifid_content,
                 "lpips_style": lpips_style,
                 "ssim_style": ssim_style,
+                "sifid_style": sifid_style,
                 "kl": kl,
                 "gram": gram,
                 "moment": moment,
@@ -115,13 +122,15 @@ if __name__ == "__main__":
             "style": "average",
             "lpips_content": avg_result[0],
             "ssim_content": avg_result[1],
-            "lpips_style": avg_result[2],
-            "ssim_style": avg_result[3],
-            "kl": avg_result[4],
-            "gram": avg_result[5],
-            "moment": avg_result[6],
-            "uniformity": avg_result[7],
-            "entropy": avg_result[8],
+            "sifid_content": avg_result[2],
+            "lpips_style": avg_result[3],
+            "ssim_style": avg_result[4],
+            "sifid_style": avg_result[5],
+            "kl": avg_result[6],
+            "gram": avg_result[7],
+            "moment": avg_result[8],
+            "uniformity": avg_result[9],
+            "entropy": avg_result[10],
         }
     )
 
@@ -132,8 +141,10 @@ if __name__ == "__main__":
             "style",
             "lpips_content",
             "ssim_content",
+            "sifid_content",
             "lpips_style",
             "ssim_style",
+            "sifid_style",
             "kl",
             "gram",
             "moment",
