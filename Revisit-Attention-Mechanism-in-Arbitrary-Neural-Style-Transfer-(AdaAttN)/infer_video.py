@@ -1,21 +1,30 @@
 import torch
 
+import os
 import cv2
+import imageio
+import numpy as np
 from PIL import Image
 
 from vgg19 import VGG19
 from network import StylizingNetwork
-from utilities import toTensor255, cv2_to_tensor
+from utilities import toTensor255, cv2_to_tensor, mkdir
 
 
-# MODEL_PATH = "./models/AdaAttN-image_epoch_5_batchSize_8.pth"
-# ACTIAVTION = "softmax"
+# MODE = "Original"
+MODE = "Stylized"
 
 MODEL_PATH = "./models/AdaAttN-video_epoch_10_batchSize_4.pth"
 ACTIAVTION = "cosine"
 
-VIDEO_PATH = "../datasets/Videvo/67.mp4"
-STYLE_PATH = "./styles/Composition.jpg"
+# VIDEO_PATH = "../datasets/Videvo/19.mp4"
+# STYLE_PATH = "./styles/Sketch.jpg"
+
+# VIDEO_PATH = "../datasets/Videvo/98.mp4"
+# STYLE_PATH = "./styles/The-Scream.jpg"
+
+VIDEO_PATH = "../datasets/Videvo/38.mp4"
+STYLE_PATH = "./styles/Untitled-1964.jpg"
 
 
 if __name__ == "__main__":
@@ -33,6 +42,10 @@ if __name__ == "__main__":
     fs = vgg19(s)
 
     cap = cv2.VideoCapture(VIDEO_PATH)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"FPS: {fps}")
+
+    frames = list()
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -46,10 +59,14 @@ if __name__ == "__main__":
 
             # Forward pass
             cs = model(fc, fs)
-            cs = cs.clamp(0, 255)
+            if MODE == "Stylized":
+                cs = cs.clamp(0, 255)
+            else:
+                cs = c.clamp(0, 255)
 
         # Convert output tensor back to image format
-        cs = cs.squeeze(0).cpu().permute(1, 2, 0).numpy()
+        cs = cs.squeeze(0).permute(1, 2, 0).cpu().numpy().astype(np.uint8)
+        frames.append(cs)
         cs = cv2.cvtColor(cs, cv2.COLOR_RGB2BGR)
         cs = cs.astype("uint8")
 
@@ -58,3 +75,14 @@ if __name__ == "__main__":
         if cv2.waitKey(1) & 0xFF == ord("q"):
             cv2.destroyAllWindows()
             break
+    
+    # Create output directory if it doesn't exist
+    SAVE_PATH = "./results/Video"
+    mkdir(SAVE_PATH, delete_existing_files=True)
+
+    # Save the frames as images
+    for i in range(len(frames)):
+        imageio.imwrite(os.path.join(SAVE_PATH, f"{MODE}_{i}.jpg"), frames[i])
+
+    # Save the frames as a video
+    imageio.mimsave(os.path.join(SAVE_PATH, f"{MODE}.mp4"), frames, fps=fps)
